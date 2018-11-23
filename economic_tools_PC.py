@@ -10,18 +10,6 @@ from __future__ import division
 import numpy as np
 import math
 
-
-## FindTariffLoop FUNCTION =============================================================================================
-def FindTariffLoop(lifetime,Revenue,Balance,CashonHand,Cost,loadkWh,tariff):
-    for j in range(1,lifetime):
-        #"Revenue is a function of the energy supplied to off takers at the tariff rate"
-        Revenue[j]= loadkWh * tariff   
-        Balance[j] = Revenue[j] - Cost[j]
-        CashonHand[j] = CashonHand[j-1] + Revenue[j] - Cost[j]
-    return Revenue, Balance, CashonHand
-##=====================================================================================================================
-
-
 ## MCASHFLOW FUNCTION =====================================================================================================
 def mcashflow (Batt_life_yrs, equity_debt_ratio, term, loadkWh, interest_rate, loanfactor, PVkW, BattKWh, LEC, C1_pv, C1_LPG, Cost_bank, Cost_Propane_yr):
 #Removed all thermal system variables and calculations 
@@ -84,7 +72,7 @@ def mcashflow (Batt_life_yrs, equity_debt_ratio, term, loadkWh, interest_rate, l
 		    LoanPrincipal[j] = 0
  
     while not all(i > 0 for i in CashonHand[1:]): #continue loop until all values in CashonHand[1:] are greater than 0
-        tariff = tariff*1.05 #" Increase the tariff until the cash flows are positive "
+        tariff = tariff*1.001 #" Increase the tariff until the cash flows are positive "
         for j in range(1,lifetime):
             #"Revenue is a function of the energy supplied to off takers at the tariff rate"
             Revenue[j]= loadkWh * tariff   
@@ -107,7 +95,6 @@ def Econ_total(propane, PVkW,BattKWh,Batt_kWh_tot,loanfactor,equity_debt_ratio,L
     Batt_lifecycle = 1750 #"The capacity of the battery is approximately 1750 times its C10 rating OPG2-2000.pdf"
     Batt_life_yrs = math.floor((BattKWh*Batt_lifecycle)/(Batt_kWh_tot+0.01))  #"Years of battery life before replacement is necessary, rounded down to an integer"
   
-    HH=205 #"number of households in community of interest"
     loadkWh=121217  #"need to update this as integral of load curve"
     peakload=40  #"need to update this from load curve max power"
     node_num = 213  #"from site survey"
@@ -181,4 +168,3 @@ if __name__ == "__main__":
     LoanPrincipal, year, Cost, Revenue, CashonHand, Balance, M, O, tariff, Batt_life_yrs = Econ_total(propane,PVkW,BattKWh,Batt_kWh_tot,loanfactor,equity_debt_ratio,LEC)
 
  
-#print tariff
