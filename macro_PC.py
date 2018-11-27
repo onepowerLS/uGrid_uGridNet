@@ -16,7 +16,6 @@ import time
 start_time = time.time()
 
 #PSO Parameters
-minGen = 20
 maxGen = 50
 numInd = 20
 X_tariff_multiplier = 0.005
@@ -68,6 +67,14 @@ gB_propane = 999
 gB_tariff = 999
 gB_tariff_plus = gB_tariff*(1+X_tariff_multiplier)
 gB_parameters = np.zeros(2)
+LoadKW_MAK = pd.read_excel('LoadKW_MAK.xlsx',index_col=None, header=None)
+hmax = len(LoadKW_MAK)
+gB_Cost = np.zeros(hmax)
+data_plot_variables = np.zeros((hmax,13))
+gB_plot_variables = pd.DataFrame(data = data_plot_variables ,columns=['Batt_SOC', 'Charge', 'LoadkW', 'genLoad', 'Batt_Power_to_Load', 'Batt_Power_to_Load_neg', 'PV_Power', 'PV_Batt_Change_Power', 'dumpload', 'Batt_frac', 'Gen_Batt_Charge_Power', 'Genset_fuel', 'Fuel_kW'])
+data_optimization_variables = np.zeros((maxGen-1, 4))
+gB_optimization_output_var = np.zeros((4,maxGen-1))
+gB_optimization_output =pd.DataFrame(data = data_optimization_variables, columns =['BattkW','PVkW','Propane','Tariff'])            
 
 #gB_change (best individual in generation)
 gB_change_propane = np.ones(maxGen)*999
@@ -103,7 +110,8 @@ while iteration < maxGen-1 and t_diff > stopLimit and match < convergenceRequire
                
         LoanPrincipal, year, Cost, Revenue, CashonHand, Balance, M, O, tariff[m,iteration], Batt_life_yrs[m,iteration] = Econ_total(Propane_ec[m,iteration],Parameters[1,m,iteration]*peakload,Parameters[0,m,iteration]*peakload,Batt_kWh_tot_ec[m,iteration],loanfactor,equity_debt_ratio,LEC)
         #order of parameters: batt, PV, CSP, ORC, TES_ratio
-
+        
+   
         #Checking Outputs
         print "This individual's yearly propane and tariff is: " +str(Propane_ec[m,iteration]) + ", " +str(tariff[m,iteration])
 
@@ -120,9 +128,9 @@ while iteration < maxGen-1 and t_diff > stopLimit and match < convergenceRequire
             gB_propane = np.copy(Propane_ec[m,iteration])
             gB_parameters = np.copy(Parameters[:,m,iteration])
             #Saving plotting variables
-            data_plot_variables = np.transpose([Batt_SOC, Charge, LoadkW, genLoad, Inv_Batt_Dis_P, PV_Power, PV_Batt_Change_Power, dumpload, Batt_frac, Gen_Batt_Charge_Power, Genset_fuel, Fuel_kW])
-            gB_plot_variables = pd.DataFrame(data = data_plot_variables,columns=['Batt_SOC', 'Charge', 'LoadkW', 'genLoad', 'Inv_Batt_Dis_P', 'PV_Power', 'PV_Batt_Change_Power', 'dumpload', 'Batt_frac', 'Gen_Batt_Charge_Power', 'Genset_fuel', 'Fuel_kW'])
-            gB_Cost = np.copy(Cost)         
+            data_plot_variables = np.transpose([Batt_SOC, Charge, LoadkW, genLoad, -Inv_Batt_Dis_P, Inv_Batt_Dis_P, PV_Power, PV_Batt_Change_Power, dumpload, Batt_frac, Gen_Batt_Charge_Power, Genset_fuel, Fuel_kW])
+            gB_plot_variables = pd.DataFrame(data = data_plot_variables,columns=['Batt_SOC', 'Charge', 'LoadkW', 'genLoad', 'Batt_Power_to_Load', 'Batt_Power_to_Load_neg', 'PV_Power', 'PV_Batt_Change_Power', 'dumpload', 'Batt_frac', 'Gen_Batt_Charge_Power', 'Genset_fuel', 'Fuel_kW'])
+            gB_Cost = np.copy(Cost)
         #Find personal best (done at the end of each iteration)
         for pB_iter in range(iteration):
             if tariff[m,iteration] < pB_tariff_plus[m] or (tariff[m,iteration] < pB_tariff[m] and Propane_ec[m,iteration] < pB_propane[m]):
@@ -188,16 +196,33 @@ print "Time to complete generation is " + str(end_time - start_time)
 #Best Solution Variables Saved
 #gB_plot_variables
 Total_Cost = sum(gB_Cost)
-#test_pd['a'].plot(kind='line')
-#test_pd.plot(kind='line')
-#plt.savefig('Test.pdf')
+#gB_optimization_output_var = np.zeros((4,maxGen-1))
+gB_optimization_output_var = {'BattkW':gB_change_parameters[0,:],'PVkW':gB_change_parameters[1,:], 'Propane':gB_change_propane,'Tariff':gB_change_tariff}
+
+#gB_optimization_output_var = np.transpose(np.concatenate((gB_change_parameters[0,:],gB_change_parameters[1,:], gB_change_propane,gB_change_tariff), axis=1))
+gB_optimization_output =pd.DataFrame(gB_optimization_output_var)#, columns =['BattkW','PVkW','Propane','Tariff'])            
+
+#Print Results to Excel (Optimization and Solution Variables)
+writer = pd.ExcelWriter('output.xlsx', engine='xlsxwriter')
+
+# Convert the dataframe to an XlsxWriter Excel object.
+gB_plot_variables.to_excel(writer, sheet_name='Solution Output')
+gB_optimization_output.to_excel(writer, sheet_name='Optimization Output')
+
+# Close the Pandas Excel writer and output the Excel file.
+writer.save()
+
+#Plot power to the load and the load curve
+gB_plot_variables.plot(y = ['LoadkW', 'genLoad', 'Batt_Power_to_Load', 'PV_Power','dumpload'], kind='line')
+plt.savefig('Power_to_Load.pdf')
+#Plot power to battery and battery SOC
+gB_plot_variables.plot(y = ['Batt_SOC', 'Charge', 'PV_Batt_Change_Power','Batt_Power_to_Load_neg', 'Batt_frac', 'Gen_Batt_Charge_Power'], kind='line')
+plt.savefig('Power_to_Battery.pdf')
 
 
-#Plot Dispatch of resources powering battery
 
-#Plot Dispatch of resources powering load
 
-#Create print out of optimization results
+#Create Excel of Optimization Results
 #Best in generation and how it changes
 #Final global best results
     
