@@ -9,12 +9,11 @@ Created on Tue Jun 21 10:13:16 2016
 from __future__ import division
 import numpy as np
 import math
+import pandas as pd
 
 ## MCASHFLOW FUNCTION =====================================================================================================
-def mcashflow (Batt_life_yrs, equity_debt_ratio, term, loadkWh, interest_rate, loanfactor, PVkW, BattKWh, LEC, C1_pv, C1_LPG, Cost_bank, Cost_Propane_yr):
+def mcashflow (lifetime,f_pv,a_pv,f,a,Batt_life_yrs, equity_debt_ratio, term, loadkWh, interest_rate, loanfactor, PVkW, BattKWh, LEC, C1_pv, C1_LPG, Cost_bank, Cost_Propane_yr):
 #Removed all thermal system variables and calculations 
-    
-    lifetime = 15 
     
     #Initialize output variables
     LoanPrincipal = np.zeros(lifetime)
@@ -28,11 +27,6 @@ def mcashflow (Batt_life_yrs, equity_debt_ratio, term, loadkWh, interest_rate, l
     tariff = np.copy(LEC) # "USD/kWh tariff for electricity"
     Batt_penalty = 0
 	
-    #"factors for distributing maintenance costs in time as a function of capex see Orosz IMechE"
-    f_pv=0.25
-    a_pv=0.25
-    f=1.25
-    a=0.25
     LoanPrincipal[0] = ((C1_pv+C1_LPG)*loanfactor)*(1-equity_debt_ratio)   #"The amount of project finance needed to cover capex and initial opex"
     LoanPrincipal[1] = np.copy(LoanPrincipal[0])
     CashonHand[0] = equity_debt_ratio*((C1_pv+C1_LPG)*loanfactor)+ LoanPrincipal[0]-(C1_pv+C1_LPG)
@@ -85,67 +79,56 @@ def mcashflow (Batt_life_yrs, equity_debt_ratio, term, loadkWh, interest_rate, l
 	
  
 ## Econ_total function ===========================================================================
-def Econ_total(propane, PVkW,BattKWh,Batt_kWh_tot,loanfactor,equity_debt_ratio,LEC):    
+def Econ_total(propane, PVkW,BattKWh,Batt_kWh_tot,peakload,loadkWh):    
 
+    #Load all Econ input
+    Econ_Parameters = pd.read_excel('uGrid_Input.xlsx', sheet_name = 'Econ')
+
+    #"factors for distributing maintenance costs in time as a function of capex see Orosz IMechE"
+    f_pv= Econ_Parameters['f_pv'][0]
+    a_pv=Econ_Parameters['a_pv'][0]
+    f=Econ_Parameters['f'][0]
+    a=Econ_Parameters['a'][0]    
+    
     #"Set the financial return and period"
-    interest_rate=0.03
-    term=12
-  
+    interest_rate=Econ_Parameters['interest_rate'][0]
+    term=Econ_Parameters['term'][0]
+    loanfactor=Econ_Parameters['loanfactor'][0]
+    equity_debt_ratio=Econ_Parameters['equity_debt_ratio'][0]
+    lifetime = Econ_Parameters['lifetime'][0]
+      
     #"Convert battery throughput into lifetime"
-    Batt_lifecycle = 1750 #"The capacity of the battery is approximately 1750 times its C10 rating OPG2-2000.pdf"
-    Batt_life_yrs = math.floor((BattKWh*Batt_lifecycle)/(Batt_kWh_tot+0.01))  #"Years of battery life before replacement is necessary, rounded down to an integer"
-  
-    loadkWh=121217  #"need to update this as integral of load curve"
-    peakload=40  #"need to update this from load curve max power"
-    node_num = 213  #"from site survey"
-    Dist_km = 8.5  #"from ViPor"
-    Step_up_Trans_num = 1 #"from ViPor"
-    Pole_Trans_num=5 #"from ViPor"
-    Pole_num=Dist_km/0.050   #"1 pole for every 50m distribution wire"
+    Batt_life_yrs = math.floor((BattKWh*Econ_Parameters['Batt_lifecycle'][0])/(Batt_kWh_tot+0.01))  #"Years of battery life before replacement is necessary, rounded down to an integer"
 
-    #"Cost functions"
-    Cost_Dist_wire = 0.5/1000   #"0.5USD/m"
-    Cost_batt=150 #"[$/kWh]"
-    Cost_panels=PVkW*450  #"PV Price via Alibaba 2016"
-    Cost_control=5000  #"STG Build or PLC"
-    Cost_charge_controllers=150*PVkW
-    Cost_Pole=40  #"Transmission Pole Prices 2016 from treatedpoles.co.za"
-    Cost_Pole_Trans= 150 #"$" "Alibaba 20kVA single phase 11kV/.22kV"
-    Cost_Step_up_Trans=1000 #"$" "Alibaba 63kVA single phase 11kV/.22kV"
-    Cost_Smartmeter=65*node_num  #"Iometer"
-    Cost_MPesa = 70*peakload  #"Estimate for merchant services with vodacom"
-    Cost_inv=peakload*800 #"[$/kW peak]"
-    Cost_EPC_tracker=200*PVkW
-    Cost_EPC_LPG_tank=5000
-    Cost_EPC_Power_house=2500
-    Cost_EPC_Labor_Plant=14200
-    Cost_EPC_Labor_Dist=5500
-    Cost_Dev_land=2000
-    Cost_Dev_EIA=2000
-    Cost_Dev_connection=1000
-    Cost_Dev_ICT=3250
-    Cost_Dev_contingency=10000
-    Cost_Dev_overhead=10000
-    Cost_taxes=1500
+    #"Cost functions"  
+    Pole_num=Econ_Parameters['Dist_km'][0] /0.050   #"1 pole for every 50m distribution wire"
+    Cost_panels=PVkW*Econ_Parameters['Cost_panel_per_kW'][0]  #"PV Price via Alibaba 2016"
+    Cost_charge_controllers=Econ_Parameters['Cost_charge_controllers_per_kW'][0]*PVkW
+    Cost_Smartmeter=65*Econ_Parameters['node_num'][0]  #"Iometer"
+    Cost_MPesa = Econ_Parameters['Cost_Mpesa_per_kWLoad'][0]*peakload  #"Estimate for merchant services with vodacom"
+    Cost_inv=peakload*Econ_Parameters['Cost_inv_per_kWLoad'] #"[$/kW peak]"
+    Cost_EPC_tracker=Econ_Parameters['Cost_EPC_tracker_per_kW']*PVkW
  
     #"Cost aggregators"
     C1_LPG = (-10354.1143  + 6192.606 * math.log(peakload))   #"Propane Genset costs"  "Based on generac lineup"
  
-    Cost_bank = BattKWh * Cost_batt   #"[NREL, USAID Tetratech, health mgmt., PIH] "
+    Cost_bank = BattKWh * Econ_Parameters['Cost_batt'][0]   #"[NREL, USAID Tetratech, health mgmt., PIH] "
  
     Cost_Propane_yr = propane*1.3  #"USD/kg"  "RSA prices 2016" 
 
-    Cost_Dist = Cost_Dist_wire * Dist_km + Cost_Step_up_Trans * Step_up_Trans_num + Cost_Pole_Trans * Pole_Trans_num + Cost_Pole * Pole_num 
+    Cost_Dist = Econ_Parameters['Cost_Dist_wire'][0] * Econ_Parameters['Dist_km'][0] + Econ_Parameters['Cost_Step_up_Trans'][0] * Econ_Parameters['Step_up_Trans_num'][0] + Econ_Parameters['Cost_Pole_Trans'][0] * Econ_Parameters['Pole_Trans_num'][0] + Econ_Parameters['Cost_Pole'][0] * Pole_num 
  
-    Cost_BOS = Cost_bank + Cost_inv + Cost_control + Cost_Dist + Cost_Smartmeter + Cost_MPesa + Cost_charge_controllers   #"Balance of System"
+    Cost_BOS = Cost_bank + Cost_inv + Econ_Parameters['Cost_control'][0] + Cost_Dist + Cost_Smartmeter + Cost_MPesa + Cost_charge_controllers   #"Balance of System"
   
-    Cost_EPC = Cost_EPC_tracker + Cost_EPC_LPG_tank + Cost_EPC_Power_house + Cost_EPC_Labor_Plant + Cost_EPC_Labor_Dist
+    Cost_EPC = Cost_EPC_tracker + Econ_Parameters['Cost_EPC_LPG_tank'] + Econ_Parameters['Cost_EPC_Power_house'] + Econ_Parameters['Cost_EPC_Labor_Plant'] + Econ_Parameters['Cost_EPC_Labor_Dist']
  
-    Cost_Dev = Cost_Dev_land + Cost_Dev_EIA + Cost_Dev_connection + Cost_Dev_ICT + Cost_Dev_contingency + Cost_Dev_overhead + Cost_taxes
+    Cost_Dev = Econ_Parameters['Cost_Dev_land'] + Econ_Parameters['Cost_Dev_EIA'] + Econ_Parameters['Cost_Dev_connection'] + Econ_Parameters['Cost_Dev_ICT'] + Econ_Parameters['Cost_Dev_contingency'] + Econ_Parameters['Cost_Dev_overhead'] + Econ_Parameters['Cost_taxes']
  
     C1_pv = Cost_panels + Cost_BOS + Cost_EPC + Cost_Dev
+    
+    LEC = 0.1 #this is a starting point for LEC. This could potentially be done without a hill-climb and be directly solved
 
-    LoanPrincipal, year, Cost, Revenue, CashonHand, Balance, M, O, tariff = mcashflow(Batt_life_yrs, equity_debt_ratio, term, loadkWh, interest_rate, loanfactor, PVkW, BattKWh, LEC, C1_pv, C1_LPG, Cost_bank, Cost_Propane_yr)
+    LoanPrincipal, year, Cost, Revenue, CashonHand, Balance, M, O, tariff = mcashflow(lifetime,f_pv,a_pv,f,a,Batt_life_yrs, equity_debt_ratio, term, loadkWh, interest_rate, loanfactor, PVkW, BattKWh, LEC, C1_pv, C1_LPG, Cost_bank, Cost_Propane_yr)
 
     #print "Tariff is " + str(tariff)
 
@@ -161,10 +144,11 @@ if __name__ == "__main__":
     PVkW=100
     BattKWh=200
     Batt_kWh_tot=50000
-    loanfactor=1
-    equity_debt_ratio=0
-    LEC = 0.1
+    LoadKW_MAK = pd.read_excel('LoadKW_MAK.xlsx',index_col=None, header=None)
+    peakload_buffer = 1.2
+    peakload=max(LoadKW_MAK[0])*peakload_buffer
+    loadkWh = sum(LoadKW_MAK[0])
 
-    LoanPrincipal, year, Cost, Revenue, CashonHand, Balance, M, O, tariff, Batt_life_yrs = Econ_total(propane,PVkW,BattKWh,Batt_kWh_tot,loanfactor,equity_debt_ratio,LEC)
+    LoanPrincipal, year, Cost, Revenue, CashonHand, Balance, M, O, tariff, Batt_life_yrs = Econ_total(propane,PVkW,BattKWh,Batt_kWh_tot,peakload,loadkWh)
 
  

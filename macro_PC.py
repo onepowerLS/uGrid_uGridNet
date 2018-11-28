@@ -16,28 +16,30 @@ import time
 start_time = time.time()
 
 #PSO Parameters
-maxGen = 50
-numInd = 20
-X_tariff_multiplier = 0.005
-stopLimit = 0.001
-convergenceRequirement = 0.75*numInd
-lowTestLim = 0.025
-highTestLim = 0.05
-roundDownSize = 0.05
-C1 = 2
-C2 = 2
-CF = 1
-W = 1
-VF = 0.1
-momentum = 0.95
+PSO_Parameters = pd.read_excel('uGrid_Input.xlsx', sheet_name = 'PSO')
+maxGen = PSO_Parameters['maxGen'][0]
+numInd = PSO_Parameters['numInd'][0]
+X_tariff_multiplier = PSO_Parameters['X_tariff_multiplier'][0]
+stopLimit = PSO_Parameters['stopLimit'][0]
+convergenceRequirement = PSO_Parameters['convergenceRequirement'][0]
+lowTestLim = PSO_Parameters['lowTestLim'][0]
+highTestLim = PSO_Parameters['highTestLim'][0]
+roundDownSize = PSO_Parameters['roundDownSize'][0]
+C1 = PSO_Parameters['C1'][0]
+C2 = PSO_Parameters['C2'][0]
+CF = PSO_Parameters['CF'][0]
+W = PSO_Parameters['W'][0]
+VF = PSO_Parameters['VF'][0]
+momentum = PSO_Parameters['momentum'][0]
 
 #Parameter limits: Battery, PV
+#These will be changed so the solutions are more flexible for sites (not input)
+#Could make these scaled off of load input
 lower_bounds = [1,1]
 upper_bounds = [10,5]
 
 
 #Initialize matrixes and parameters
-peakload = 40 #need to find where this is actually inputted
 Parameters_test = np.zeros(2)
 Parameters_dev = np.zeros(2)
 
@@ -56,9 +58,6 @@ for i in range(2):
 #Initialize Economic Parameters    
 tariff = np.zeros((numInd,maxGen))
 Batt_life_yrs = np.zeros((numInd,maxGen))
-loanfactor=1
-equity_debt_ratio=0
-LEC = 0.1 #this is a starting point for LEC. This could potentially be done without a hill-climb and be directly solved
 
 #Initialize Global Bests
 #global best: best known postions ever, personal best: best known position for each particle(out of all generations), gbest_change: best in generation (out of all individuals)
@@ -105,10 +104,10 @@ while iteration < maxGen-1 and t_diff > stopLimit and match < convergenceRequire
     match = 0
     for m in range(numInd):            
         #calculate technical parameters
-        Propane_ec[m,iteration], DNI, Batt_kWh_tot_ec[m,iteration], Batt_SOC, Charge, State, LoadkW, genLoad, Inv_Batt_Dis_P, PV_Power, PV_Batt_Change_Power, dumpload, Batt_frac, Gen_Batt_Charge_Power, Genset_fuel, Fuel_kW = Tech_total(Parameters[0,m,iteration],Parameters[1,m,iteration])
+        Propane_ec[m,iteration], DNI, Batt_kWh_tot_ec[m,iteration], Batt_SOC, Charge, State, LoadkW, genLoad, Inv_Batt_Dis_P, PV_Power, PV_Batt_Change_Power, dumpload, Batt_frac, Gen_Batt_Charge_Power, Genset_fuel, Fuel_kW, peakload, loadkWh = Tech_total(Parameters[0,m,iteration],Parameters[1,m,iteration])
         #don't need to save DNI, final, Batt_SOC, and Charge these are used to validate program
                
-        LoanPrincipal, year, Cost, Revenue, CashonHand, Balance, M, O, tariff[m,iteration], Batt_life_yrs[m,iteration] = Econ_total(Propane_ec[m,iteration],Parameters[1,m,iteration]*peakload,Parameters[0,m,iteration]*peakload,Batt_kWh_tot_ec[m,iteration],loanfactor,equity_debt_ratio,LEC)
+        LoanPrincipal, year, Cost, Revenue, CashonHand, Balance, M, O, tariff[m,iteration], Batt_life_yrs[m,iteration] = Econ_total(Propane_ec[m,iteration],Parameters[1,m,iteration]*peakload,Parameters[0,m,iteration]*peakload,Batt_kWh_tot_ec[m,iteration],peakload,loadkWh)
         #order of parameters: batt, PV, CSP, ORC, TES_ratio
         
    
@@ -121,8 +120,8 @@ while iteration < maxGen-1 and t_diff > stopLimit and match < convergenceRequire
             gB_change_tariff_plus[iteration] = gB_change_tariff[iteration]*(1+X_tariff_multiplier)
             gB_change_propane[iteration] = np.copy(Propane_ec[m,iteration])
             gB_change_parameters[:,iteration] = np.copy(Parameters[:,m,iteration])
-        #Find global best
-        if tariff[m,iteration] < gB_tariff_plus or (tariff[m,iteration] < gB_tariff and Propane_ec[m,0] < gB_propane):
+        #Find global best (removed gB_tariff_plus buffer for true global best: tariff[m,iteration] < gB_tariff_plus or)
+        if tariff[m,iteration] < gB_tariff and Propane_ec[m,0] < gB_propane:
             gB_tariff = np.copy(tariff[m,iteration])
             gB_tariff_plus = gB_tariff*(1+X_tariff_multiplier)
             gB_propane = np.copy(Propane_ec[m,iteration])
@@ -191,11 +190,15 @@ while iteration < maxGen-1 and t_diff > stopLimit and match < convergenceRequire
     iteration += 1
 
 end_time = time.time()
-print "Time to complete generation is " + str(end_time - start_time)
+total_time = end_time - start_time
+print "Time to complete generation is " + str(total_time)
 
 #Best Solution Variables Saved
-#gB_plot_variables
 Total_Cost = sum(gB_Cost)
+#add extra variables to solution output
+#gB_plot_variables.add()
+#also add total time
+
 #gB_optimization_output_var = np.zeros((4,maxGen-1))
 gB_optimization_output_var = {'BattkW':gB_change_parameters[0,:],'PVkW':gB_change_parameters[1,:], 'Propane':gB_change_propane,'Tariff':gB_change_tariff}
 
@@ -203,7 +206,8 @@ gB_optimization_output_var = {'BattkW':gB_change_parameters[0,:],'PVkW':gB_chang
 gB_optimization_output =pd.DataFrame(gB_optimization_output_var)#, columns =['BattkW','PVkW','Propane','Tariff'])            
 
 #Print Results to Excel (Optimization and Solution Variables)
-writer = pd.ExcelWriter('output.xlsx', engine='xlsxwriter')
+filename_xlsx = "uGrid_Output_"+PSO_Parameters['output_name'][0]+".xlsx"
+writer = pd.ExcelWriter(filename_xlsx, engine='xlsxwriter')
 
 # Convert the dataframe to an XlsxWriter Excel object.
 gB_plot_variables.to_excel(writer, sheet_name='Solution Output')
@@ -214,19 +218,14 @@ writer.save()
 
 #Plot power to the load and the load curve
 gB_plot_variables.plot(y = ['LoadkW', 'genLoad', 'Batt_Power_to_Load', 'PV_Power','dumpload'], kind='line')
-plt.savefig('Power_to_Load.pdf')
+filename_Plot_LoadDispatch = "Power_to_Load_"+PSO_Parameters['output_name'][0]+".pdf"
+plt.savefig(filename_Plot_LoadDispatch)
 #Plot power to battery and battery SOC
 gB_plot_variables.plot(y = ['Batt_SOC', 'Charge', 'PV_Batt_Change_Power','Batt_Power_to_Load_neg', 'Batt_frac', 'Gen_Batt_Charge_Power'], kind='line')
-plt.savefig('Power_to_Battery.pdf')
+filename_Plot_BatteryDispatch = "Battery_to_Load_"+PSO_Parameters['output_name'][0]+".pdf"
+plt.savefig(filename_Plot_BatteryDispatch)
 
 
-
-
-#Create Excel of Optimization Results
-#Best in generation and how it changes
-#Final global best results
-    
-    
     
     
 

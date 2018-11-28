@@ -10,9 +10,11 @@ from __future__ import division
 import numpy as np
 import pandas as pd
 import math
+from numba import jit
 
 
 ## Batt_Bal FUNCTION =====================================================================================================
+#@jit(nopython=True) # Set "nopython" mode for best performance
 def batt_bal(T_amb, Limit, PV_Batt_Charge_Power,Inv_Batt_dis_P,Gen_Batt_Charge_Power,Batt_SOC_in,BattkWh,timestep): 
 #REMOVE ORC
     
@@ -74,28 +76,38 @@ def batt_bal(T_amb, Limit, PV_Batt_Charge_Power,Inv_Batt_dis_P,Gen_Batt_Charge_P
     
 
 ## Storage_Levels FUNCTION =====================================================================================================
+@jit(nopython=True) # Set "nopython" mode for best performance
 def storage_levels(Batt_SOC,low_trip,high_trip,BattkWh,loadLeft):
- 
+#Compare the SOC of the battery with the battery limits to determine if battery 
+#will be charging, supplying, or doing nothing. 
+    
     #" Battery SOC cases "
     if BattkWh == 0:
         battcase = 1 #"if no batteries, always responds as Low Batt"
+        #battcase 1: No charge in battery
     else:
         if Batt_SOC > high_trip:
             battcase = 4
+            #battcase 4: Battery is over high limit, do not charge but can discharge
         else:
             if Batt_SOC < low_trip:
                 battcase = 1
+                #battcase 1: Battery is below low limit, do not discharge but can charge
             else:
                 if (Batt_SOC-low_trip) > loadLeft:
                     battcase = 3
+                    #battcase 3: Charge is battery is enough to supply load left
+                    #without going below battery's low limit
                 else:
                     battcase = 2
+                    #battcase 2: Battery is capable of charging or discharging
  
     return battcase
 ##=============================================================================================================================
 
 
 ## GetState FUNCTION =====================================================================================================
+@jit(nopython=True) # Set "nopython" mode for best performance
 def getstate(PV_Pow,loadkW,battcase,BattkWh, peakload):
 
     #This can be cleaned up
@@ -224,8 +236,10 @@ def setvars(current_state,I_b,lowlightcutoff,PV_Avail_Pow,timestep,T_amb,Genset_
 
 
 ## fuel_calcs FUNCTION =====================================================================================================
+@jit(nopython=True) # Set "nopython" mode for best performance
 def fuel_calcs(genload,peakload,timestep):
     #"generator fuel consumption calculations based on efficiency as a function of power output fraction of nameplate rating"
+   
     partload = genload / peakload
     Eta_genset = -0.00430876206 + 0.372448046*partload - 0.174532718*partload**2   #"Derived from Onan 25KY model"
  
@@ -244,15 +258,12 @@ def fuel_calcs(genload,peakload,timestep):
 
 ## solar_ambient FUNCTION =====================================================================================================
 def solar_ambient(th_Hour,NOCT,lat_factor,Pmax_Tco,PVkW,lowlightcutoff,MSU_TMY):
-#month is not used
     #"SOLAR - AMBIENT"
     #"determine ambient conditions and perform the calculations related to irradiance and temperature"
     #"Set beam radiation equal to the irradiance distribution calculated in the solar module"
-
-    #Hour = MSU_TMY.at[:,'Hour'] #for single value
     Hour = MSU_TMY.loc[:,'Hour']  #collects entire column
     Tamb = MSU_TMY.loc[:,'Tamb'] 
-    Itrack = MSU_TMY.loc[:,'Itrack']
+    Itrack = MSU_TMY.loc[:,'Itrack'] #in the TMY spreadsheet DNI, GHI, and itrack are all the same
 
     #"derive T_amb from TMY dataset"
     T_amb = np.interp(th_Hour, Hour, Tamb) #('MSU_TMY','Tamb','Hour',Hour=th_Hour)	 
@@ -265,14 +276,12 @@ def solar_ambient(th_Hour,NOCT,lat_factor,Pmax_Tco,PVkW,lowlightcutoff,MSU_TMY):
         I_b=-999
  
     if I_b > lowlightcutoff: 
-        #"IF CSP in equipment"
         if PVkW > 0:
             #"Determine the effect of temperature on the PV cell efficiency"
             #"T_Cell in relation to NOCT, irradiance and T_amb from Handbook of Photovoltaic Science and Engineering, Hegedus/Luque 2011  pg 801
             #modified DNI to account for latitutude tilt"
             T_cell=T_amb+(NOCT-20)*I_b/800   #"[C]"  "*lat_factor if fixed tilt"
             P_norm=((100+(T_cell-25)*Pmax_Tco)/100)*1.2  #"add 20% for tracking"
- 
             #"PV Calculations"
             PV_Avail_Pow=PVkW*P_norm*I_b/1000   #"scale with I_b and adjust for lat tilt to DNI ratio, and include P_norm to account for temperature coefficient"
         else:
@@ -286,7 +295,7 @@ def solar_ambient(th_Hour,NOCT,lat_factor,Pmax_Tco,PVkW,lowlightcutoff,MSU_TMY):
 
 
 ## operation FUNCTION =====================================================================================================
-def operation(Pmax_Tco, NOCT, smart, PVkW, BattkWh, peakload, LoadKW_MAK, FullYearEnergy, MSU_TMY):
+def operation(Batt_Charge_Limit,low_trip_perc,high_trip_perc,lowlightcutoff,Pmax_Tco, NOCT, smart, PVkW, BattkWh, peakload, LoadKW_MAK, FullYearEnergy, MSU_TMY):
 # Month$ was replaced with Month_
 
     timestep=1 #"hours - initialize timestep to 10 minutes"
@@ -317,20 +326,15 @@ def operation(Pmax_Tco, NOCT, smart, PVkW, BattkWh, peakload, LoadKW_MAK, FullYe
     #"Initialize variables"
     DNI=0
     Propane=0
-    Limit = BattkWh/5	#"kW"  "Battery can only be charged at rate up to arbitrary 1/5 of its full capacity rating"
-    lowlightcutoff = 100	  #"DNI level under which solar technologies not responsive"
- 
-    #"battery"
-    high_trip = 0.95*BattkWh	  #" kWh "
-    low_trip = 0.05*BattkWh	 # " kWh "
+    Limit = BattkWh/Batt_Charge_Limit	#"kW"  "Battery can only be charged at rate up to arbitrary 1/5 of its full capacity rating"
+    high_trip = high_trip_perc*BattkWh	  #" kWh "
+    low_trip = low_trip_perc*BattkWh	 # " kWh "
     I_b=0
     genload[0] = 0
     Gen_Batt_Charge_Power[0] = 0
     PV_Batt_Charge_Power[0] = 0
     Inv_Batt_Dis_P[0] =0
- 
-    #" Initialization of this var is actually no longer necessary "
-    current_state = 4 #" initialization state ensures power delivery no matter the available equipment"
+    Batt_kWh_tot=0 
  
     #" If battery bank is included in generation equipment "
     if BattkWh > 0: 
@@ -345,9 +349,7 @@ def operation(Pmax_Tco, NOCT, smart, PVkW, BattkWh, peakload, LoadKW_MAK, FullYe
     #"---------------------------------------------------------------------------------------"
     #"WRAPPER LOOP"
     #"---------------------------------------------------------------------------------------"
-    Batt_kWh_tot=0  #"dummy variable for cumulative calc at bottom of loop"
- 
- 
+
     h=0 #"initialize loop variable (timestep counter)"
     while h < hmax:
  
@@ -482,25 +484,21 @@ def operation(Pmax_Tco, NOCT, smart, PVkW, BattkWh, peakload, LoadKW_MAK, FullYe
 ## Tech_total function =========================================================================================================
 def Tech_total(BattkWh_Parametric,PVkW_Parametric):
 
-    #"User defined parameters" 
-    NOCT=45 #"[C]"  "Nominal Open Circuit Temperature of the PV panel"
-    Pmax_Tco=-0.4  #"[%/C]"
-    smart=1  #"use a charging strategy that attempts to minimize the usage of the genset"
-    peakload=40 #"maximum power output of the load curve [kW]"
-
-    #"variables scaled to the load peak - should be automatically updated with peakload"
-    #used with parametric tables
-    BattkWh=BattkWh_Parametric*peakload  #"[kWh]"
-    PVkW=PVkW_Parametric*peakload  #"[kW]"
-    
     #Load excel files containing LoadKW_MAK, FullYearEnergy, final
     LoadKW_MAK = pd.read_excel('LoadKW_MAK.xlsx',index_col=None, header=None)
     FullYearEnergy = pd.read_excel('FullYearEnergy.xlsx',index_col=None, header=None)
     MSU_TMY = pd.read_excel('MSU_TMY.xlsx')
-
-    Propane, DNI, Batt_kWh_tot, Batt_SOC, Charge, State,LoadkW, genLoad, Inv_Batt_Dis_P, PV_Power, PV_Batt_Charge_Power, dumpload, Batt_frac, Gen_Batt_Charge_Power, Genset_fuel, Fuel_kW = operation(Pmax_Tco, NOCT, smart, PVkW, BattkWh, peakload, LoadKW_MAK, FullYearEnergy, MSU_TMY) 
+    Tech_Parameters = pd.read_excel('uGrid_Input.xlsx', sheet_name = 'Tech')    
     
-    return Propane, DNI, Batt_kWh_tot, Batt_SOC, Charge, State, LoadkW, genLoad, Inv_Batt_Dis_P, PV_Power, PV_Batt_Charge_Power, dumpload, Batt_frac, Gen_Batt_Charge_Power, Genset_fuel, Fuel_kW
+    #Input Calculations
+    peakload=max(LoadKW_MAK[0])*Tech_Parameters['peakload_buffer'][0] #"maximum power output of the load curve [kW]"
+    loadkWh = sum(LoadKW_MAK[0])
+    BattkWh=BattkWh_Parametric*peakload  #"[kWh]"
+    PVkW=PVkW_Parametric*peakload  #"[kW]"
+    
+    Propane, DNI, Batt_kWh_tot, Batt_SOC, Charge, State,LoadkW, genLoad, Inv_Batt_Dis_P, PV_Power, PV_Batt_Charge_Power, dumpload, Batt_frac, Gen_Batt_Charge_Power, Genset_fuel, Fuel_kW = operation(Tech_Parameters['Batt_Charge_Limit'][0],Tech_Parameters['low_trip_perc'][0],Tech_Parameters['high_trip_perc'][0],Tech_Parameters['lowlightcutoff'][0],Tech_Parameters['Pmax_Tco'][0], Tech_Parameters['NOCT'][0], Tech_Parameters['smart'][0], PVkW, BattkWh, peakload, LoadKW_MAK, FullYearEnergy, MSU_TMY) 
+    
+    return Propane, DNI, Batt_kWh_tot, Batt_SOC, Charge, State, LoadkW, genLoad, Inv_Batt_Dis_P, PV_Power, PV_Batt_Charge_Power, dumpload, Batt_frac, Gen_Batt_Charge_Power, Genset_fuel, Fuel_kW,peakload,loadkWh
 ##=============================================================================================================
 
 
@@ -513,4 +511,4 @@ if __name__ == "__main__":
     BattkWh_Parametric=7
     PVkW_Parametric=2.36
     
-    Propane, DNI, Batt_kWh_tot, Batt_SOC, Charge, State, LoadkW, genLoad, Inv_Batt_Dis_P, PV_Power, PV_Batt_Charge_Power, dumpload, Batt_frac, Gen_Batt_Charge_Power, Genset_fuel, Fuel_kW = Tech_total(BattkWh_Parametric,PVkW_Parametric)
+    Propane, DNI, Batt_kWh_tot, Batt_SOC, Charge, State, LoadkW, genLoad, Inv_Batt_Dis_P, PV_Power, PV_Batt_Charge_Power, dumpload, Batt_frac, Gen_Batt_Charge_Power, Genset_fuel, Fuel_kW,peakload,loadkWh = Tech_total(BattkWh_Parametric,PVkW_Parametric)
