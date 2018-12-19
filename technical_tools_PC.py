@@ -10,7 +10,7 @@ from __future__ import division
 import numpy as np
 import pandas as pd
 import math
-from numba import jit
+#from numba import jit
 
 
 ## Batt_Bal FUNCTION =====================================================================================================
@@ -76,7 +76,7 @@ def batt_bal(T_amb, Limit, PV_Batt_Charge_Power,Inv_Batt_dis_P,Gen_Batt_Charge_P
     
 
 ## Storage_Levels FUNCTION =====================================================================================================
-@jit(nopython=True) # Set "nopython" mode for best performance
+#@jit(nopython=True) # Set "nopython" mode for best performance
 def storage_levels(Batt_SOC,low_trip,high_trip,BattkWh,loadLeft):
 #Compare the SOC of the battery with the battery limits to determine if battery 
 #will be charging, supplying, or doing nothing. 
@@ -107,7 +107,7 @@ def storage_levels(Batt_SOC,low_trip,high_trip,BattkWh,loadLeft):
 
 
 ## GetState FUNCTION =====================================================================================================
-@jit(nopython=True) # Set "nopython" mode for best performance
+#@jit(nopython=True) # Set "nopython" mode for best performance
 def getstate(PV_Pow,loadkW,battcase,BattkWh, peakload):
 
     #This can be cleaned up
@@ -236,7 +236,7 @@ def setvars(current_state,I_b,lowlightcutoff,PV_Avail_Pow,timestep,T_amb,Genset_
 
 
 ## fuel_calcs FUNCTION =====================================================================================================
-@jit(nopython=True) # Set "nopython" mode for best performance
+#@jit(nopython=True) # Set "nopython" mode for best performance
 def fuel_calcs(genload,peakload,timestep):
     #"generator fuel consumption calculations based on efficiency as a function of power output fraction of nameplate rating"
    
@@ -256,47 +256,11 @@ def fuel_calcs(genload,peakload,timestep):
 ##=============================================================================================================================    
 
 
-## solar_ambient FUNCTION =====================================================================================================
-def solar_ambient(th_Hour,NOCT,lat_factor,Pmax_Tco,PVkW,lowlightcutoff,MSU_TMY):
-    #"SOLAR - AMBIENT"
-    #"determine ambient conditions and perform the calculations related to irradiance and temperature"
-    #"Set beam radiation equal to the irradiance distribution calculated in the solar module"
-    Hour = MSU_TMY.loc[:,'Hour']  #collects entire column
-    Tamb = MSU_TMY.loc[:,'Tamb'] 
-    Itrack = MSU_TMY.loc[:,'Itrack'] #in the TMY spreadsheet DNI, GHI, and itrack are all the same
-
-    #"derive T_amb from TMY dataset"
-    T_amb = np.interp(th_Hour, Hour, Tamb) #('MSU_TMY','Tamb','Hour',Hour=th_Hour)	 
-	
-    if PVkW > 0:
-        #"derive I_b from DNI dataset or modified dataset for tracker"
-        #I_b=interpolate('MSU_TMY','Itrack','Hour',Hour=th_Hour)
-        I_b = np.interp(th_Hour, Hour, Itrack)  
-    else:
-        I_b=-999
- 
-    if I_b > lowlightcutoff: 
-        if PVkW > 0:
-            #"Determine the effect of temperature on the PV cell efficiency"
-            #"T_Cell in relation to NOCT, irradiance and T_amb from Handbook of Photovoltaic Science and Engineering, Hegedus/Luque 2011  pg 801
-            #modified DNI to account for latitutude tilt"
-            T_cell=T_amb+(NOCT-20)*I_b/800   #"[C]"  "*lat_factor if fixed tilt"
-            P_norm=((100+(T_cell-25)*Pmax_Tco)/100)*1.2  #"add 20% for tracking"
-            #"PV Calculations"
-            PV_Avail_Pow=PVkW*P_norm*I_b/1000   #"scale with I_b and adjust for lat tilt to DNI ratio, and include P_norm to account for temperature coefficient"
-        else:
-            PV_Avail_Pow = 0
-    else:
-        PV_Avail_Pow = 0
-
-
-    return I_b,T_amb,PV_Avail_Pow
-##=============================================================================================================================  
-
-
 ## operation FUNCTION =====================================================================================================
-def operation(Batt_Charge_Limit,low_trip_perc,high_trip_perc,lowlightcutoff,Pmax_Tco, NOCT, smart, PVkW, BattkWh, peakload, LoadKW_MAK, FullYearEnergy, MSU_TMY):
-# Month$ was replaced with Month_
+def operation(Batt_Charge_Limit,low_trip_perc,high_trip_perc,lowlightcutoff,Pmax_Tco, NOCT, smart, PVkW, BattkWh, peakload, LoadKW_MAK, FullYearEnergy, MSU_TMY,Solar_Parameters,trans_losses):
+    from solar_calcs_PC import SolarTotal
+    
+    # Month$ was replaced with Month_
 
     timestep=1 #"hours - initialize timestep to 10 minutes"
  
@@ -306,7 +270,7 @@ def operation(Batt_Charge_Limit,low_trip_perc,high_trip_perc,lowlightcutoff,Pmax
       
     #initialize arrays
     State = np.zeros(hmax)
-    beam = np.zeros(hmax)  #"to track irradiance"
+    Gt_panel = np.zeros(hmax)  #"to track irradiance"
     T_ambient = np.zeros(hmax)  #"to track ambient temperature"
     PV_Power = np.zeros(hmax)  #"kW electrical"
     PV_Batt_Charge_Power = np.zeros(hmax)
@@ -324,7 +288,6 @@ def operation(Batt_Charge_Limit,low_trip_perc,high_trip_perc,lowlightcutoff,Pmax
     loadLeft = np.zeros(hmax)
   
     #"Initialize variables"
-    DNI=0
     Propane=0
     Limit = BattkWh/Batt_Charge_Limit	#"kW"  "Battery can only be charged at rate up to arbitrary 1/5 of its full capacity rating"
     high_trip = high_trip_perc*BattkWh	  #" kWh "
@@ -344,7 +307,7 @@ def operation(Batt_Charge_Limit,low_trip_perc,high_trip_perc,lowlightcutoff,Pmax
  
     #"derive factor for latitude tilted PV panel based on I_tilt to DNI ratio from NASA SSE dataset - used for fixed tilt"
     #CALL I_Tilt(Lat, Long, Month:lat_factor)
-    lat_factor=1
+    #lat_factor=1
  
     #"---------------------------------------------------------------------------------------"
     #"WRAPPER LOOP"
@@ -369,17 +332,17 @@ def operation(Batt_Charge_Limit,low_trip_perc,high_trip_perc,lowlightcutoff,Pmax
  
         if PVkW > 0:
             #" Assess solar availability "
-            I_b,T_amb,PV_Avail_Pow = solar_ambient(Hour[h],NOCT,lat_factor,Pmax_Tco,PVkW,lowlightcutoff, MSU_TMY)
+            hrang,declin,theta,Gt,PV_Avail_Pow,T_amb = SolarTotal(MSU_TMY,Solar_Parameters['year'][0],Hour[h],Solar_Parameters['longitude'][0],Solar_Parameters['latitude'][0],Solar_Parameters['timezone'][0],Solar_Parameters['slope'][0],Solar_Parameters['azimuth'][0],Solar_Parameters['pg'][0],PVkW,Solar_Parameters['fpv'][0],Solar_Parameters['alpha_p'][0],Solar_Parameters['eff_mpp'][0],Solar_Parameters['f_inv'][0])
         else:
             T_amb=-9999
             PV_Avail_Pow=0
-            I_b=-9999
+            Gt=-9999
 	
  
         #"LOAD (kW) for this timestep"
         #"calculate the row value in the Nkautest simulated load dataset (based on Hobhouse NRS) corresponding to the simulation timestep"
         loadcounter=Hour[0]/timestep + h  
-        LoadkW[h] = LoadKW_MAK.iloc[int(loadcounter),0] #"choose the reference load dataset" #calls from lookuptable. Need to load excel sheet of this data
+        LoadkW[h] = LoadKW_MAK.iloc[int(loadcounter),0]*(1+trans_losses) #"choose the reference load dataset" #calls from lookuptable. Need to load excel sheet of this data
         #LOOKUP['Table Name', Row, Column]=Value, Set the value of the cell at the specified row andcolumn of the specified Lookup table to the given value. Column must either be an integer, referringto the column number or a string constant or string variable that provides the name of the column.
   	
  
@@ -438,8 +401,7 @@ def operation(Batt_Charge_Limit,low_trip_perc,high_trip_perc,lowlightcutoff,Pmax
         #" Env parameters "
         if h<hmax-1:
             Hour[h+1] = Hour[h]+timestep
-        beam[h] = np.copy(I_b)  #"to track irradiance"
-        DNI = DNI+(beam[h]*timestep)/1000
+        Gt_panel[h] = np.copy(Gt)  #"to track irradiance"
 	
         T_ambient[h] = np.copy(T_amb)  #"to track ambient temperature"
  
@@ -477,7 +439,7 @@ def operation(Batt_Charge_Limit,low_trip_perc,high_trip_perc,lowlightcutoff,Pmax
     #"END OF WRAPPER LOOP"
     #"---------------------------------------------------------------------------------------"
     
-    return Propane, DNI, Batt_kWh_tot, Batt_SOC, Charge, State, LoadkW, genload, Inv_Batt_Dis_P, PV_Power, PV_Batt_Charge_Power, dumpload, Batt_frac, Gen_Batt_Charge_Power, Genset_fuel, Fuel_kW
+    return Propane, Gt_panel, Batt_kWh_tot, Batt_SOC, Charge, State, LoadkW, genload, Inv_Batt_Dis_P, PV_Power, PV_Batt_Charge_Power, dumpload, Batt_frac, Gen_Batt_Charge_Power, Genset_fuel, Fuel_kW
 
 ##============================================================================================================================= 
 
@@ -488,7 +450,8 @@ def Tech_total(BattkWh_Parametric,PVkW_Parametric):
     LoadKW_MAK = pd.read_excel('LoadKW_MAK.xlsx',index_col=None, header=None)
     FullYearEnergy = pd.read_excel('FullYearEnergy.xlsx',index_col=None, header=None)
     MSU_TMY = pd.read_excel('MSU_TMY.xlsx')
-    Tech_Parameters = pd.read_excel('uGrid_Input.xlsx', sheet_name = 'Tech')    
+    Tech_Parameters = pd.read_excel('uGrid_Input.xlsx', sheet_name = 'Tech')
+    Solar_Parameters = pd.read_excel('uGrid_Input.xlsx', sheet_name = 'Solar')     
     
     #Input Calculations
     peakload=max(LoadKW_MAK[0])*Tech_Parameters['peakload_buffer'][0] #"maximum power output of the load curve [kW]"
@@ -496,9 +459,9 @@ def Tech_total(BattkWh_Parametric,PVkW_Parametric):
     BattkWh=BattkWh_Parametric*peakload  #"[kWh]"
     PVkW=PVkW_Parametric*peakload  #"[kW]"
     
-    Propane, DNI, Batt_kWh_tot, Batt_SOC, Charge, State,LoadkW, genLoad, Inv_Batt_Dis_P, PV_Power, PV_Batt_Charge_Power, dumpload, Batt_frac, Gen_Batt_Charge_Power, Genset_fuel, Fuel_kW = operation(Tech_Parameters['Batt_Charge_Limit'][0],Tech_Parameters['low_trip_perc'][0],Tech_Parameters['high_trip_perc'][0],Tech_Parameters['lowlightcutoff'][0],Tech_Parameters['Pmax_Tco'][0], Tech_Parameters['NOCT'][0], Tech_Parameters['smart'][0], PVkW, BattkWh, peakload, LoadKW_MAK, FullYearEnergy, MSU_TMY) 
+    Propane, Gt_panel, Batt_kWh_tot, Batt_SOC, Charge, State,LoadkW, genLoad, Inv_Batt_Dis_P, PV_Power, PV_Batt_Charge_Power, dumpload, Batt_frac, Gen_Batt_Charge_Power, Genset_fuel, Fuel_kW = operation(Tech_Parameters['Batt_Charge_Limit'][0],Tech_Parameters['low_trip_perc'][0],Tech_Parameters['high_trip_perc'][0],Tech_Parameters['lowlightcutoff'][0],Tech_Parameters['Pmax_Tco'][0], Tech_Parameters['NOCT'][0], Tech_Parameters['smart'][0], PVkW, BattkWh, peakload, LoadKW_MAK, FullYearEnergy, MSU_TMY,Solar_Parameters,Tech_Parameters['trans_losses'][0]) 
     
-    return Propane, DNI, Batt_kWh_tot, Batt_SOC, Charge, State, LoadkW, genLoad, Inv_Batt_Dis_P, PV_Power, PV_Batt_Charge_Power, dumpload, Batt_frac, Gen_Batt_Charge_Power, Genset_fuel, Fuel_kW,peakload,loadkWh
+    return Propane, Gt_panel, Batt_kWh_tot, Batt_SOC, Charge, State, LoadkW, genLoad, Inv_Batt_Dis_P, PV_Power, PV_Batt_Charge_Power, dumpload, Batt_frac, Gen_Batt_Charge_Power, Genset_fuel, Fuel_kW,peakload,loadkWh
 ##=============================================================================================================
 
 
@@ -511,4 +474,4 @@ if __name__ == "__main__":
     BattkWh_Parametric=7
     PVkW_Parametric=2.36
     
-    Propane, DNI, Batt_kWh_tot, Batt_SOC, Charge, State, LoadkW, genLoad, Inv_Batt_Dis_P, PV_Power, PV_Batt_Charge_Power, dumpload, Batt_frac, Gen_Batt_Charge_Power, Genset_fuel, Fuel_kW,peakload,loadkWh = Tech_total(BattkWh_Parametric,PVkW_Parametric)
+    Propane, Gt_panel, Batt_kWh_tot, Batt_SOC, Charge, State, LoadkW, genLoad, Inv_Batt_Dis_P, PV_Power, PV_Batt_Charge_Power, dumpload, Batt_frac, Gen_Batt_Charge_Power, Genset_fuel, Fuel_kW,peakload,loadkWh = Tech_total(BattkWh_Parametric,PVkW_Parametric)

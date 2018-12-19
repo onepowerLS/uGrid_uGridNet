@@ -12,7 +12,7 @@ import math
 import pandas as pd
 
 ## MCASHFLOW FUNCTION =====================================================================================================
-def mcashflow (lifetime,f_pv,a_pv,f,a,Batt_life_yrs, equity_debt_ratio, term, loadkWh, interest_rate, loanfactor, PVkW, BattKWh, LEC, C1_pv, C1_LPG, Cost_bank, Cost_Propane_yr):
+def mcashflow (tariff_hillclimb_multiplier,lifetime,f_pv,a_pv,f,a,Batt_life_yrs, equity_debt_ratio, term, loadkWh, interest_rate, loanfactor, PVkW, BattKWh, LEC, C1_pv, C1_LPG, Cost_bank, Cost_Propane_yr):
 #Removed all thermal system variables and calculations 
     
     #Initialize output variables
@@ -66,7 +66,7 @@ def mcashflow (lifetime,f_pv,a_pv,f,a,Batt_life_yrs, equity_debt_ratio, term, lo
 		    LoanPrincipal[j] = 0
  
     while not all(i > 0 for i in CashonHand[1:]): #continue loop until all values in CashonHand[1:] are greater than 0
-        tariff = tariff*1.001 #" Increase the tariff until the cash flows are positive "
+        tariff = tariff*tariff_hillclimb_multiplier #" Increase the tariff until the cash flows are positive "
         for j in range(1,lifetime):
             #"Revenue is a function of the energy supplied to off takers at the tariff rate"
             Revenue[j]= loadkWh * tariff   
@@ -96,9 +96,10 @@ def Econ_total(propane, PVkW,BattKWh,Batt_kWh_tot,peakload,loadkWh):
     loanfactor=Econ_Parameters['loanfactor'][0]
     equity_debt_ratio=Econ_Parameters['equity_debt_ratio'][0]
     lifetime = Econ_Parameters['lifetime'][0]
+    tariff_hillclimb_multiplier = Econ_Parameters['tariff_hillclimb_multiplier'][0]
       
     #"Convert battery throughput into lifetime"
-    Batt_life_yrs = math.floor((BattKWh*Econ_Parameters['Batt_lifecycle'][0])/(Batt_kWh_tot+0.01))  #"Years of battery life before replacement is necessary, rounded down to an integer"
+    Batt_life_yrs = np.floor((BattKWh*Econ_Parameters['Batt_lifecycle'][0])/(Batt_kWh_tot+0.01))  #"Years of battery life before replacement is necessary, rounded down to an integer"
 
     #"Cost functions"  
     Pole_num=Econ_Parameters['Dist_km'][0] /0.050   #"1 pole for every 50m distribution wire"
@@ -128,7 +129,7 @@ def Econ_total(propane, PVkW,BattKWh,Batt_kWh_tot,peakload,loadkWh):
     
     LEC = 0.1 #this is a starting point for LEC. This could potentially be done without a hill-climb and be directly solved
 
-    LoanPrincipal, year, Cost, Revenue, CashonHand, Balance, M, O, tariff = mcashflow(lifetime,f_pv,a_pv,f,a,Batt_life_yrs, equity_debt_ratio, term, loadkWh, interest_rate, loanfactor, PVkW, BattKWh, LEC, C1_pv, C1_LPG, Cost_bank, Cost_Propane_yr)
+    LoanPrincipal, year, Cost, Revenue, CashonHand, Balance, M, O, tariff = mcashflow(tariff_hillclimb_multiplier,lifetime,f_pv,a_pv,f,a,Batt_life_yrs, equity_debt_ratio, term, loadkWh, interest_rate, loanfactor, PVkW, BattKWh, LEC, C1_pv, C1_LPG, Cost_bank, Cost_Propane_yr)
 
     #print "Tariff is " + str(tariff)
 

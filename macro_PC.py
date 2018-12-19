@@ -95,6 +95,9 @@ VelMax = VF*(np.array(upper_bounds)-np.array(lower_bounds))
 VelMin = -1*VelMax
 V_gens = np.zeros((2,numInd,maxGen))
 
+#Record History (best tariff recording through iterations)
+recordRecord = np.zeros(maxGen)
+
 
 # Start Optimization Iterations
 iteration = 0
@@ -104,8 +107,8 @@ while iteration < maxGen-1 and t_diff > stopLimit and match < convergenceRequire
     match = 0
     for m in range(numInd):            
         #calculate technical parameters
-        Propane_ec[m,iteration], DNI, Batt_kWh_tot_ec[m,iteration], Batt_SOC, Charge, State, LoadkW, genLoad, Inv_Batt_Dis_P, PV_Power, PV_Batt_Change_Power, dumpload, Batt_frac, Gen_Batt_Charge_Power, Genset_fuel, Fuel_kW, peakload, loadkWh = Tech_total(Parameters[0,m,iteration],Parameters[1,m,iteration])
-        #don't need to save DNI, final, Batt_SOC, and Charge these are used to validate program
+        Propane_ec[m,iteration], Gt_panel, Batt_kWh_tot_ec[m,iteration], Batt_SOC, Charge, State, LoadkW, genLoad, Inv_Batt_Dis_P, PV_Power, PV_Batt_Change_Power, dumpload, Batt_frac, Gen_Batt_Charge_Power, Genset_fuel, Fuel_kW, peakload, loadkWh = Tech_total(Parameters[0,m,iteration],Parameters[1,m,iteration])
+        #don't need to save Gt_panel, final, Batt_SOC, and Charge these are used to validate program
                
         LoanPrincipal, year, Cost, Revenue, CashonHand, Balance, M, O, tariff[m,iteration], Batt_life_yrs[m,iteration] = Econ_total(Propane_ec[m,iteration],Parameters[1,m,iteration]*peakload,Parameters[0,m,iteration]*peakload,Batt_kWh_tot_ec[m,iteration],peakload,loadkWh)
         #order of parameters: batt, PV, CSP, ORC, TES_ratio
@@ -121,7 +124,7 @@ while iteration < maxGen-1 and t_diff > stopLimit and match < convergenceRequire
             gB_change_propane[iteration] = np.copy(Propane_ec[m,iteration])
             gB_change_parameters[:,iteration] = np.copy(Parameters[:,m,iteration])
         #Find global best (removed gB_tariff_plus buffer for true global best: tariff[m,iteration] < gB_tariff_plus or)
-        if tariff[m,iteration] < gB_tariff and Propane_ec[m,0] < gB_propane:
+        if tariff[m,iteration] < gB_tariff_plus or (tariff[m,iteration] < gB_tariff and Propane_ec[m,0] < gB_propane):
             gB_tariff = np.copy(tariff[m,iteration])
             gB_tariff_plus = gB_tariff*(1+X_tariff_multiplier)
             gB_propane = np.copy(Propane_ec[m,iteration])
@@ -137,6 +140,7 @@ while iteration < maxGen-1 and t_diff > stopLimit and match < convergenceRequire
                 pB_tariff_plus[m] = pB_tariff[m]*(1+X_tariff_multiplier)
                 pB_propane[m] = np.copy(Propane_ec[m,iteration])
                 pB_parameters[:,m] = np.copy(Parameters[:,m,iteration])
+        recordRecord[iteration] = np.copy(gB_tariff)
 
         #Calculate Next Gen
         V_gens[:,m,iteration+1] = W*V_gens[:,m,iteration] + C1*np.random.uniform(0,1)*(pB_parameters[:,m] - Parameters[:,m,iteration]) + C2*np.random.uniform(0,1)*(gB_parameters- Parameters[:,m,iteration])
@@ -191,17 +195,18 @@ while iteration < maxGen-1 and t_diff > stopLimit and match < convergenceRequire
 
 end_time = time.time()
 total_time = end_time - start_time
-print "Time to complete generation is " + str(total_time)
+print "Time to complete simulation is " + str(total_time)
 
 #Best Solution Variables Saved
 Total_Cost = sum(gB_Cost)
 #add extra variables to solution output
-#gB_plot_variables.add()
-#also add total time
+#This raises the error: ValueError: If using all scalar values, you must pass an index
+gB_total_var =pd.DataFrame({'Total Cost':[Total_Cost],'Simulation_Time':[total_time]})
 
 #gB_optimization_output_var = np.zeros((4,maxGen-1))
 gB_optimization_output_var = {'BattkW':gB_change_parameters[0,:],'PVkW':gB_change_parameters[1,:], 'Propane':gB_change_propane,'Tariff':gB_change_tariff}
 
+gB_recordRecord = pd.DataFrame({'recordRecord':recordRecord})
 #gB_optimization_output_var = np.transpose(np.concatenate((gB_change_parameters[0,:],gB_change_parameters[1,:], gB_change_propane,gB_change_tariff), axis=1))
 gB_optimization_output =pd.DataFrame(gB_optimization_output_var)#, columns =['BattkW','PVkW','Propane','Tariff'])            
 
@@ -212,7 +217,8 @@ writer = pd.ExcelWriter(filename_xlsx, engine='xlsxwriter')
 # Convert the dataframe to an XlsxWriter Excel object.
 gB_plot_variables.to_excel(writer, sheet_name='Solution Output')
 gB_optimization_output.to_excel(writer, sheet_name='Optimization Output')
-
+gB_total_var.to_excel(writer, sheet_name='Other Solution Output')
+gB_recordRecord.to_excel(writer, sheet_name='Record History')
 # Close the Pandas Excel writer and output the Excel file.
 writer.save()
 
