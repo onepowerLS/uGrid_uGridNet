@@ -38,8 +38,8 @@ def mcashflow (tariff_hillclimb_multiplier,lifetime,f_pv,a_pv,f,a,Batt_life_yrs,
         finance = 0
     
     if Batt_life_yrs == 0:  #"If the battery needs to be replaced more often than once a year, inflict a heavy penalty"
-		Batt_life_yrs = 1
-		Batt_penalty = 1
+        Batt_life_yrs = 1
+        Batt_penalty = 1
     
     for j in range(1,lifetime):
         #"Maintenance cost is a function of the type of equipment"
@@ -62,8 +62,8 @@ def mcashflow (tariff_hillclimb_multiplier,lifetime,f_pv,a_pv,f,a,Batt_life_yrs,
  		
 	    #"if the loan is paid off THEN there no finance charge"
         if LoanPrincipal[j] <=0:
-		    Cost[j] = Cost[j] + LoanPrincipal[j]	
-		    LoanPrincipal[j] = 0
+            Cost[j] = Cost[j] + LoanPrincipal[j]	
+            LoanPrincipal[j] = 0
  
     while not all(i > 0 for i in CashonHand[1:]): #continue loop until all values in CashonHand[1:] are greater than 0
         tariff = tariff*tariff_hillclimb_multiplier #" Increase the tariff until the cash flows are positive "

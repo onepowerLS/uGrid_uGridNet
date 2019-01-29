@@ -39,7 +39,7 @@ def batt_bal(T_amb, Limit, PV_Batt_Charge_Power,Inv_Batt_dis_P,Gen_Batt_Charge_P
         dumpload = PV_Batt_Charge_Power + Gen_Batt_Charge_Power
         Batt_SOC_out = 0
         if Inv_Batt_dis_P < 0:
-            print "Warning: System has no Battery but Inverter is operational -> ERROR!!!"
+            print("Warning: System has no Battery but Inverter is operational -> ERROR!!!")
     else:
 	    #"Batteries cannot be charged beyond full capacity, extra goes to a dump"
         Charge_e = Charge * timestep #"kWh"  "Charge energy"
@@ -258,7 +258,7 @@ def fuel_calcs(genload,peakload,timestep):
 
 ## operation FUNCTION =====================================================================================================
 def operation(Batt_Charge_Limit,low_trip_perc,high_trip_perc,lowlightcutoff,Pmax_Tco, NOCT, smart, PVkW, BattkWh, peakload, LoadKW_MAK, FullYearEnergy, MSU_TMY,Solar_Parameters,trans_losses):
-    from solar_calcs_PC import SolarTotal
+    from solar_calcs_PC_3 import SolarTotal
     
     # Month$ was replaced with Month_
 
@@ -417,7 +417,7 @@ def operation(Batt_Charge_Limit,low_trip_perc,high_trip_perc,lowlightcutoff,Pmax
         dumpload[h] = np.copy(dump)
         Batt_SOC[h] = np.copy(Batt_SOC_out)
         if BattkWh > 0:
-    		Batt_frac[h]=Batt_SOC[h]/BattkWh
+            Batt_frac[h]=Batt_SOC[h]/BattkWh
         else:
             Batt_frac[h]=0
         
