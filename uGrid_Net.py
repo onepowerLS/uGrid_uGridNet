@@ -260,111 +260,218 @@ def ReassignConnection_PoleNoConnections(ConnPoles,j,PoleDistancesToConnections,
                    
 #=============================================================================
 # Record to Record Travel Optimization
+def RRT(PoleConnMax, deviation_factor,objpre,nrep,indexes_conn,indexes_poles,indexes_excl,d_EW_between,d_NS_between,MaxDistancePoleConn,num_poles,x_index_max,y_index_max,exclusion_buffer,np_penalty_factor,mc_penalty_factor,md_penalty_factor):
+    #initialize RRT parameters
+    record = np.copy(objpre)
+    bestsoln =np.copy(indexes_poles)
+    deviation = deviation_factor*record
+    record_records = np.zeros(10000)
     
+    for j in range(nrep):
+        #Save old solution
+        oldsoln = np.copy(indexes_poles)
+
+        #Create new solution
+        changePole = randint(0,num_poles-1) 
+        indexes_poles[changePole,:] = PolePlacementNoConflicts(indexes_conn,indexes_excl,indexes_poles,num_poles,x_index_max,y_index_max,exclusion_buffer)
+        
+        #Evaluate new solution
+        ConnPoles, total_wire_distance, max_distance_penalty, max_connectionsPerPole_penalty, num_poles_in_use = MatchConnectionsPolesSimple(indexes_conn,indexes_poles,d_EW_between,d_NS_between,MaxDistancePoleConn,num_poles)
+        #Calculate Cost of Solution
+        tempobj = PenaltiesToCost(total_wire_distance, num_poles_in_use, ConnPoles,PoleConnMax,num_poles)
+        
+        if tempobj < record+deviation:
+            objnow = np.copy(tempobj)
+            if objnow < record:
+                record = np.copy(objnow)
+                bestsoln = np.copy(indexes_poles)
+                print("Best record is (total cost): " + str(record))
+        else:
+            indexes_poles = np.copy(oldsoln)
+        
+        record_records[j] = np.copy(record)
+        
+    return bestsoln, record, record_records 
 #==============================================================================
 
-            
+#==============================================================================
+# Calculate the Cost of the penalties to use as the minimizing optimization value
+def PenaltiesToCost(total_wire_distance, num_poles_in_use, ConnPoles,PoleConnMax,num_poles):
+    #Load all Econ input
+    Econ_Parameters = pd.read_excel('uGrid_Input.xlsx', sheet_name = 'Econ')
+
+    #Pull out costs needed for penalties
+    Cost_Dist_wire = Econ_Parameters['Cost_Dist_wire'][0]
+    Cost_Pole = Econ_Parameters['Cost_Pole'][0] + Econ_Parameters['Cost_Pole_Trans'][0]
+    Cost_Dist_Board = Econ_Parameters['Cost_Dist_Board'][0]
+
+    #Calculate pole setup cost
+    total_wire_cost = Cost_Dist_wire*(total_wire_distance/1000) #cost is in km, wire distance is in m
+    total_pole_cost = num_poles_in_use*Cost_Pole
+    num_dist_boards = 0
+    for j in range(num_poles):
+        board_per_pole = int(np.count_nonzero(ConnPoles[:,0]==j)/PoleConnMax)
+        num_dist_boards = num_dist_boards + board_per_pole
+    total_distboard_cost = num_dist_boards*Cost_Dist_Board
+    
+    Total_cost = total_wire_cost + total_pole_cost + total_distboard_cost
+    
+    return Total_cost
+#==============================================================================        
+               
 
 # Run Full Code ===============================================================
 if __name__ == "__main__":
-    reformatScaler = 5 #parameter to decrease the resolution of image
-    t0 = time.time()
-    #Import csv file which has been converted from the klm file
-    #This gives the points of connections which are houses to link to the distribution grid
-    Connect_nodes = pd.read_excel('MAK_connections.xlsx', sheet_name = 'connections')
-    Exclusion_nodes = pd.read_excel('MAK_exclusions.xlsx', sheet_name = 'MAK_exclusions')
-
-    #Identify gps coordinate min and max to determine coordinates of edges of jpg image
-    Longitude_exc = Exclusion_nodes['X']
-    Latitude_exc = Exclusion_nodes['Y']
-    #also convert these degrees to radians
-    Lat_exc_min = m.radians(Latitude_exc.min()) #top of image (north)
-    Lat_exc_max = m.radians(Latitude_exc.max()) #bottom of image (south)
-    Long_exc_min = m.radians(Longitude_exc.min()) #left of image (east)
-    Long_exc_max = m.radians(Longitude_exc.max()) #right of image (west)
-
-    #Calculate the distance between the gps coordiantes using Haversine Formula
-    #North South Distance #measuring latitude difference
-    d_NS = GPStoDistance(Lat_exc_max,Lat_exc_min,Long_exc_max,Long_exc_max) #m
-    #East West Distance #measuring longitude difference
-    d_EW = GPStoDistance(Lat_exc_max,Lat_exc_max,Long_exc_max,Long_exc_min) #m
-
-    #Import kml pdf file (of exclusions) and convert to jpg
-    pages = convert_from_path('MAK_exclusions.pdf',500)
-    for page in pages:
-        page.save('MAK_exclusions.jpg','JPEG')
     
-    #Convert JPG to array
-    ExclusionMap = Image.open('MAK_exclusions.jpg')
-    ExclusionMap_array = np.array(ExclusionMap)
-    #Filter rgb value to 0 'non exclusion' and 1 'exclusion'
-    #Black 0-0-0, White 255-255-255
-    height = int(len(ExclusionMap_array[:,0])/reformatScaler) #this is y_index_max
-    width = int(len(ExclusionMap_array[0,:])/reformatScaler) #this is x_index_max
-
-    #Determine distance between reformatted pixels (between values in the array)
-    d_EW_between = d_EW/width #m
-    d_NS_between = d_NS/height #m
-
-    #Load exlusion map, if not available then perform
-    #This gathers the exclusion array indexes
-    try:
-        print("in try loop")
-        index_csv_name = "indexes_reformatted_%s.csv" %str(reformatScaler)
-        indexes_excl = np.loadtxt(index_csv_name, delimiter=",")
-    except:
-        print("in except loop")
-        #quit()
-        indexes_excl = ExclusionMapper(ExclusionMap_array,reformatScaler)
-
-    #Match the connection locations to locations in the array
-    #Find distance between east limit of image and connection
-    d_Econnection = np.zeros(len(Connect_nodes))
-    d_Nconnection = np.zeros(len(Connect_nodes))
-    indexes_conn = np.zeros((len(Connect_nodes),2))
-    for i in range(len(Connect_nodes)): #iteration through connections
-        d_Econnection[i] = GPStoDistance(Lat_exc_min,Lat_exc_min,Long_exc_min,m.radians(Connect_nodes['longitude'][i])) #m
-        #print(d_Econnection[i])
-        #distance of connection to the east (left) (x index)
-        d_Nconnection[i] = GPStoDistance(Lat_exc_min,m.radians(Connect_nodes['latitude'][i]),Long_exc_min,Long_exc_min) #m
-        #print(d_Nconnection[i])
-        #distance of connection to the north (top) (y index)
-        #Get array index locations of all connections
-        indexes_conn[i,0] = int(d_Econnection[i]/d_EW_between)
-        #print(indexes_conn[i,0])
-        indexes_conn[i,1] = int(d_Nconnection[i]/d_NS_between)
-        #print(indexes_conn[i,1])
-    t1 = time.time()
-    total_time = t1-t0
-    print(total_time)
-        
-    #Random Pole Placement Initialization 
-    t0 = time.time()
-    num_poles = len(indexes_conn[:,0])
-    exclusion_buffer = 20 #meters that poles need to be form exclusions (other poles, exclusions, and connections)
-    indexes_poles = RandomPolePlacement(indexes_conn,indexes_excl,num_poles,width,height,exclusion_buffer)
-    t1 = time.time()
-    total_time = t1-t0
-    print(total_time)
+    ## Cycle through combinations of variable inputs to find best solution
+    #First vary nrep and deviations
+    devs = [0.05,0.1,0.2,0.5]
+    nreps = [10000]
     
-    #Test matching connections and poles
-    #t0 = time.time()
-    #MaxDistancePoleConn = 50 #(m) the maximum distance allowed for a pole to be from a connection
-    #PoleConnMax = 20 #maximum number of connections allowed per pole
-    #ConnPoles, total_wire_distance = MatchConnectionsPoles(indexes_conn,indexes_excl,indexes_poles,d_EW_between,d_NS_between,MaxDistancePoleConn,num_poles,width,height,exclusion_buffer,PoleConnMax)
-    #t1 = time.time()
-    #total_time = t1-t0
-    #print(total_time)
-
-    #Test matching connections and poles simple function version
-    t0 = time.time()
-    MaxDistancePoleConn = 50 #(m) the maximum distance allowed for a pole to be from a connection
-    PoleConnMax = 20 #maximum number of connections allowed per pole
-    ConnPoles, total_wire_distance, max_distance_penalty, max_connectionsPerPole_penalty, num_poles_in_use = MatchConnectionsPolesSimple(indexes_conn,indexes_poles,d_EW_between,d_NS_between,MaxDistancePoleConn,num_poles)
-    t1 = time.time()
-    total_time = t1-t0
-    print(total_time)
+    for deviation_factor in devs:
+        for nrep in nreps:
+            ## Variable Inputs    
+            reformatScaler = 5 #parameter to decrease the resolution of image
+            exclusion_buffer = 20 #meters that poles need to be form exclusions (other poles, exclusions, and connections)
+            MaxDistancePoleConn = 50 #(m) the maximum distance allowed for a pole to be from a connection
+            PoleConnMax = 20 #maximum number of connections allowed per pole
+            #nrep = 500
+            np_penalty_factor = 0
+            mc_penalty_factor = 0
+            md_penalty_factor = 0
+            #deviation_factor = 0.05
         
+            ## Initialization for Optimization
+            t0 = time.time()
+            #Import csv file which has been converted from the klm file
+            #This gives the points of connections which are houses to link to the distribution grid
+            Connect_nodes = pd.read_excel('MAK_connections.xlsx', sheet_name = 'connections')
+            Exclusion_nodes = pd.read_excel('MAK_exclusions.xlsx', sheet_name = 'MAK_exclusions')
+            
+            #Identify gps coordinate min and max to determine coordinates of edges of jpg image
+            Longitude_exc = Exclusion_nodes['X']
+            Latitude_exc = Exclusion_nodes['Y']
+            #also convert these degrees to radians
+            Lat_exc_min = m.radians(Latitude_exc.min()) #top of image (north)
+            Lat_exc_max = m.radians(Latitude_exc.max()) #bottom of image (south)
+            Long_exc_min = m.radians(Longitude_exc.min()) #left of image (east)
+            Long_exc_max = m.radians(Longitude_exc.max()) #right of image (west)
+
+            #Calculate the distance between the gps coordiantes using Haversine Formula
+            #North South Distance #measuring latitude difference
+            d_NS = GPStoDistance(Lat_exc_max,Lat_exc_min,Long_exc_max,Long_exc_max) #m
+            #East West Distance #measuring longitude difference
+            d_EW = GPStoDistance(Lat_exc_max,Lat_exc_max,Long_exc_max,Long_exc_min) #m
+
+            #Import kml pdf file (of exclusions) and convert to jpg
+            pages = convert_from_path('MAK_exclusions.pdf',500)
+            for page in pages:
+                page.save('MAK_exclusions.jpg','JPEG')
+    
+            #Convert JPG to array
+            ExclusionMap = Image.open('MAK_exclusions.jpg')
+            ExclusionMap_array = np.array(ExclusionMap)
+            #Filter rgb value to 0 'non exclusion' and 1 'exclusion'
+            #Black 0-0-0, White 255-255-255
+            height = int(len(ExclusionMap_array[:,0])/reformatScaler) #this is y_index_max
+            width = int(len(ExclusionMap_array[0,:])/reformatScaler) #this is x_index_max
+
+            #Determine distance between reformatted pixels (between values in the array)
+            d_EW_between = d_EW/width #m
+            d_NS_between = d_NS/height #m
+
+            #Load exlusion map, if not available then perform
+            #This gathers the exclusion array indexes
+            try:
+                #print("in try loop")
+                index_csv_name = "indexes_reformatted_%s.csv" %str(reformatScaler)
+                indexes_excl = np.loadtxt(index_csv_name, delimiter=",")
+            except:
+                #print("in except loop")
+                #quit()
+                indexes_excl = ExclusionMapper(ExclusionMap_array,reformatScaler)
+
+            #Match the connection locations to locations in the array
+            #Find distance between east limit of image and connection
+            d_Econnection = np.zeros(len(Connect_nodes))
+            d_Nconnection = np.zeros(len(Connect_nodes))
+            indexes_conn = np.zeros((len(Connect_nodes),2))
+            for i in range(len(Connect_nodes)): #iteration through connections
+                d_Econnection[i] = GPStoDistance(Lat_exc_min,Lat_exc_min,Long_exc_min,m.radians(Connect_nodes['longitude'][i])) #m
+                #print(d_Econnection[i])
+                #distance of connection to the east (left) (x index)
+                d_Nconnection[i] = GPStoDistance(Lat_exc_min,m.radians(Connect_nodes['latitude'][i]),Long_exc_min,Long_exc_min) #m
+                #print(d_Nconnection[i])
+                #distance of connection to the north (top) (y index)
+                #Get array index locations of all connections
+                indexes_conn[i,0] = int(d_Econnection[i]/d_EW_between)
+                #print(indexes_conn[i,0])
+                indexes_conn[i,1] = int(d_Nconnection[i]/d_NS_between)
+                #print(indexes_conn[i,1])
+            #t1 = time.time()
+            #total_time = t1-t0
+            #print(total_time)
+        
+            #Random Pole Placement Initialization 
+            #t0 = time.time()
+            num_poles = len(indexes_conn[:,0])
+            indexes_poles = RandomPolePlacement(indexes_conn,indexes_excl,num_poles,width,height,exclusion_buffer)
+            #t1 = time.time()
+            #total_time = t1-t0
+            #print(total_time)
+    
+            #Test matching connections and poles simple function version
+            #t0 = time.time()
+            ConnPoles, total_wire_distance, max_distance_penalty, max_connectionsPerPole_penalty, num_poles_in_use = MatchConnectionsPolesSimple(indexes_conn,indexes_poles,d_EW_between,d_NS_between,MaxDistancePoleConn,num_poles)
+            objpre = PenaltiesToCost(total_wire_distance, num_poles_in_use, ConnPoles,PoleConnMax,num_poles)
+            #t1 = time.time()
+            #total_time = t1-t0
+            #print(total_time)
+    
+            ## Perform RRT
+            #t0 = time.time()
+            bestsoln_indexes_poles, record, record_records = RRT(PoleConnMax,deviation_factor,objpre,nrep,indexes_conn,indexes_poles,indexes_excl,d_EW_between,d_NS_between,MaxDistancePoleConn,num_poles,width,height,exclusion_buffer,np_penalty_factor,mc_penalty_factor,md_penalty_factor)
+            #t1 = time.time()
+            #total_time = t1-t0
+            #print(total_time)    
+            
+            #Check RRT solution is accurate
+            #t0 = time.time()
+            ConnPoles, total_wire_distance, max_distance_penalty, max_connectionsPerPole_penalty, num_poles_in_use = MatchConnectionsPolesSimple(indexes_conn,bestsoln_indexes_poles,d_EW_between,d_NS_between,MaxDistancePoleConn,num_poles)
+            record_check = PenaltiesToCost(total_wire_distance, num_poles_in_use, ConnPoles,PoleConnMax,num_poles)
+            #Find max distance b/w connection and pole
+            if max_distance_penalty > 0:
+                max_dist = np.max(ConnPoles[:,1])
+            #Find max number of connections per pole
+            if max_connectionsPerPole_penalty > 0:
+                max_conn_t = len(indexes_conn[:,0])
+                for j in range(num_poles):
+                    max_conn = np.count_nonzero(ConnPoles[:,0]==j)
+                    if max_conn > max_conn_t:
+                        max_conn_t = np.copy(max_conn)    
+    
+            #Print Outcomes
+            if record_check == record:
+                print("Solution found, total wire distance is: "+str(total_wire_distance))
+                print("number of poles in use is: "+str(num_poles_in_use))
+                if max_distance_penalty > 0:
+                    print("Number of connections more than allowable distance from pole is: "+str(max_distance_penalty))
+                    print("With maximum distance being: "+str(max_dist))
+                if max_connectionsPerPole_penalty > 0:
+                    print("Number of pole with more than the allowable number of connections is: "+str(max_connectionsPerPole_penalty))
+                    print("With max number of connections per pole being: "+str(max_conn_t))
+            else:
+                print("There is a mismatch between the sanity check and RRT solution, debug please!")
+            t1 = time.time()
+            total_time = t1-t0
+            print(total_time)
+            
+            ## Save combination of variable input results
+            results = [record,max_distance_penalty,max_connectionsPerPole_penalty,num_poles_in_use,total_time]
+            filename = "RRT_Results_wCost_nrep"+str(nrep)+"_devfactor"+str(deviation_factor)+".csv"
+            np.savetxt(filename,results, delimiter=",")
+            filename_records = "RRT_Record_Results_wCost_nrep"+str(nrep)+"_devfactor"+str(deviation_factor)+".csv"
+            np.savetxt(filename_records,record_records, delimiter=",")
     
 
     #Setup pole location optimization
