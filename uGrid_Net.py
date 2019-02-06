@@ -306,7 +306,8 @@ def PenaltiesToCost(total_wire_distance, num_poles_in_use, ConnPoles,PoleConnMax
     Cost_Dist_Board = Econ_Parameters['Cost_Dist_Board'][0]
 
     #Calculate pole setup cost
-    total_wire_cost = Cost_Dist_wire*(total_wire_distance/1000) #cost is in km, wire distance is in m
+    total_wire_cost = Cost_Dist_wire*((total_wire_distance/1000)**2) #cost is in km, wire distance is in m
+    #make total_wire_distance doubly as penalty
     total_pole_cost = num_poles_in_use*Cost_Pole
     num_dist_boards = 0
     for j in range(num_poles):
@@ -325,8 +326,8 @@ if __name__ == "__main__":
     
     ## Cycle through combinations of variable inputs to find best solution
     #First vary nrep and deviations
-    devs = [0.05,0.1,0.2,0.5]
-    nreps = [10000]
+    devs = [0.005]
+    nreps = [10000] #flattens out around 6000
     
     for deviation_factor in devs:
         for nrep in nreps:
@@ -375,6 +376,8 @@ if __name__ == "__main__":
             #Black 0-0-0, White 255-255-255
             height = int(len(ExclusionMap_array[:,0])/reformatScaler) #this is y_index_max
             width = int(len(ExclusionMap_array[0,:])/reformatScaler) #this is x_index_max
+            filename = "index_maxes_%s.csv" %str(reformatScaler)
+            np.savetxt(filename,[height,width],delimiter=",")
 
             #Determine distance between reformatted pixels (between values in the array)
             d_EW_between = d_EW/width #m
@@ -393,21 +396,28 @@ if __name__ == "__main__":
 
             #Match the connection locations to locations in the array
             #Find distance between east limit of image and connection
-            d_Econnection = np.zeros(len(Connect_nodes))
-            d_Nconnection = np.zeros(len(Connect_nodes))
-            indexes_conn = np.zeros((len(Connect_nodes),2))
-            for i in range(len(Connect_nodes)): #iteration through connections
-                d_Econnection[i] = GPStoDistance(Lat_exc_min,Lat_exc_min,Long_exc_min,m.radians(Connect_nodes['longitude'][i])) #m
-                #print(d_Econnection[i])
-                #distance of connection to the east (left) (x index)
-                d_Nconnection[i] = GPStoDistance(Lat_exc_min,m.radians(Connect_nodes['latitude'][i]),Long_exc_min,Long_exc_min) #m
-                #print(d_Nconnection[i])
-                #distance of connection to the north (top) (y index)
-                #Get array index locations of all connections
-                indexes_conn[i,0] = int(d_Econnection[i]/d_EW_between)
-                #print(indexes_conn[i,0])
-                indexes_conn[i,1] = int(d_Nconnection[i]/d_NS_between)
-                #print(indexes_conn[i,1])
+            try:
+                #print("in try loop")
+                index_csv_name = "indexes_conn_reformatted_%s.csv" %str(reformatScaler)
+                indexes_conn = np.loadtxt(index_csv_name, delimiter=",")
+            except:
+                d_Econnection = np.zeros(len(Connect_nodes))
+                d_Nconnection = np.zeros(len(Connect_nodes))
+                indexes_conn = np.zeros((len(Connect_nodes),2))
+                for i in range(len(Connect_nodes)): #iteration through connections
+                    d_Econnection[i] = GPStoDistance(Lat_exc_min,Lat_exc_min,Long_exc_min,m.radians(Connect_nodes['longitude'][i])) #m
+                    #print(d_Econnection[i])
+                    #distance of connection to the east (left) (x index)
+                    d_Nconnection[i] = GPStoDistance(Lat_exc_min,m.radians(Connect_nodes['latitude'][i]),Long_exc_min,Long_exc_min) #m
+                    #print(d_Nconnection[i])
+                    #distance of connection to the north (top) (y index)
+                    #Get array index locations of all connections
+                    indexes_conn[i,0] = int(d_Econnection[i]/d_EW_between)
+                    #print(indexes_conn[i,0])
+                    indexes_conn[i,1] = int(d_Nconnection[i]/d_NS_between)
+                    #print(indexes_conn[i,1])
+                index_csv_name = "indexes_conn_reformatted_%s.csv" %str(reformatScaler)
+                np.savetxt(index_csv_name,indexes_conn, delimiter=",")
             #t1 = time.time()
             #total_time = t1-t0
             #print(total_time)
@@ -468,11 +478,14 @@ if __name__ == "__main__":
             
             ## Save combination of variable input results
             results = [record,max_distance_penalty,max_connectionsPerPole_penalty,num_poles_in_use,total_time]
-            filename = "RRT_Results_wCost_nrep"+str(nrep)+"_devfactor"+str(deviation_factor)+".csv"
+            filename = "RRT_Results_wCost_WireSqr_nrep"+str(nrep)+"_devfactor"+str(deviation_factor)+".csv"
             np.savetxt(filename,results, delimiter=",")
-            filename_records = "RRT_Record_Results_wCost_nrep"+str(nrep)+"_devfactor"+str(deviation_factor)+".csv"
+            filename_records = "RRT_Record_Results_wCost_WireSqr_nrep"+str(nrep)+"_devfactor"+str(deviation_factor)+".csv"
             np.savetxt(filename_records,record_records, delimiter=",")
-    
+            filename_solution_indexes_poles = "indexes_poles_wCost_WireSqr_nrep"+str(nrep)+"_devfactor"+str(deviation_factor)+".csv"
+            np.savetxt(filename_solution_indexes_poles,indexes_poles, delimiter=",")
+            filename_ConnPoles = "ConnPoles_wCost_WireSqr_nrep"+str(nrep)+"_devfactor"+str(deviation_factor)+".csv" 
+            np.savetxt(filename_ConnPoles,ConnPoles, delimiter=",")
 
     #Setup pole location optimization
     #Use Record to Record Travel Optimization
