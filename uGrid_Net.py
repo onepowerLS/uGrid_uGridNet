@@ -74,6 +74,7 @@ def DistanceBWindexes(indexesA,indexesB,d_EW_between,d_NS_between):
     B_sqr = np.zeros((len(indexesA), len(indexesB)))
     for i in range(len(indexesA)):
         for j in range(len(indexesB)):
+            #print(indexesA)
             A_sqr[i,j] = math.pow(((indexesA[i,0]-indexesB[j,0])*d_EW_between),2)
             #print(indexesA[i,0]-indexesB[j,0])
             #print((indexesA[i,0]-indexesB[j,0])*d_EW_between)
@@ -85,19 +86,19 @@ def DistanceBWindexes(indexesA,indexesB,d_EW_between,d_NS_between):
 
 #=============================================================================
 # Randomly Place Poles with constraint of not being placed on other pole, connection, or exclusion
-def RandomPolePlacement(indexes_conn,indexes_excl,num_poles,x_index_max,y_index_max,exclusion_buffer):
+def RandomPolePlacement(indexes_conn,indexes_excl,num_poles,x_index_max,y_index_max,exclusion_buffer,d_EW_between,d_NS_between):
     #Maximum number of poles = number of connections
     #pole_max = len(indexes_conn[:,0]) #this is preset outside of function (in optimization)
     indexes_poles = np.zeros((num_poles,2))
     i = 0
     for i in range(num_poles):
-        indexes_poles[i,:] = PolePlacementNoConflicts(indexes_conn,indexes_excl,indexes_poles,num_poles,x_index_max,y_index_max,exclusion_buffer)
+        indexes_poles[i,:] = PolePlacementNoConflicts(indexes_conn,indexes_excl,indexes_poles,num_poles,x_index_max,y_index_max,exclusion_buffer,d_EW_between,d_NS_between)
     return indexes_poles
 #==============================================================================
     
 #==============================================================================
 # Test new pole placement for conflicts
-def PolePlacementNoConflicts(indexes_conn,indexes_excl,indexes_poles,num_poles,x_index_max,y_index_max,exclusion_buffer):
+def PolePlacementNoConflicts(indexes_conn,indexes_excl,indexes_poles,num_poles,x_index_max,y_index_max,exclusion_buffer,d_EW_between,d_NS_between):
     #must have 20m buffer between exclusions, connections, and poles from new pole
     goodToGo = 0
     indexes_all_excl = np.concatenate((indexes_conn,indexes_excl,indexes_poles),axis=0)
@@ -155,117 +156,121 @@ def MatchConnectionsPolesSimple(indexes_conn,indexes_poles,d_EW_between,d_NS_bet
 #==============================================================================
              
         
-
-#==============================================================================
-# Match Connections to Poles
-def MatchConnectionsPoles(indexes_conn,indexes_excl,indexes_poles,d_EW_between,d_NS_between,MaxDistancePoleConn,num_poles,x_index_max,y_index_max,exclusion_buffer,PoleConnMax):
-    ConnPoles = np.zeros((len(indexes_conn[:,0]),2)) #first value is pole, second value is distance to that pole
-
-    i = 0
-    goodToGo = 0
-    while goodToGo == 0:
-        # First Calculate distances between connections and poles
-        DistanceConnPoles = DistanceBWindexes(indexes_conn,indexes_poles,d_EW_between,d_NS_between)
-        #Check 1) If any of the shortest distances are farther than the allowable distance from pole
-        while i < len(ConnPoles[:,0]): #cycle through all connections
-            ConnPoles[i,0] = np.argmin(DistanceConnPoles[i,:])
-            ConnPoles[i,1] = np.min(DistanceConnPoles[i,:])
-            if ConnPoles[i,1] > MaxDistancePoleConn:
-                #randomly move one pole and complete restart
-                changePole = randint(0,num_poles-1)
-                indexes_poles[changePole,:] = PolePlacementNoConflicts(indexes_conn,indexes_excl,indexes_poles,num_poles,x_index_max,y_index_max,exclusion_buffer)
-                i = 0
-            else:
-                i += 1
-                #All connections to poles are under the allowable distance
-        #Check 2) If there are no more than max allowable connections per pole
-        j = 0
-        while j < num_poles:
-            if np.count_nonzero(ConnPoles[:,0]==j) > PoleConnMax: #If over limit get new connection assignment
-                ConnPoles = ReassignConnection_PoleConnMaxConstraint(ConnPoles,j,DistanceConnPoles[j,:])
-                if ConnPoles == 0: #This means no other second shortest distances where less than allowable distance from pole
-                    #now need to randomly replace a random pole and try it all again
-                    changePole = randint(0,num_poles-1)
-                    indexes_poles[changePole,:] = PolePlacementNoConflicts(indexes_conn,indexes_excl,indexes_poles,num_poles,x_index_max,y_index_max,exclusion_buffer)
-                    break #retry from the beginning (going back to Check 1)
-                else: 
-                    #successful reassignment of connection, recheck Check 2 from beginning
-                    j = 0
-            else:
-                #No Poles have over the maximum allowable connections, moving forward
-                j += 1
-        #Check 3) If any of the poles are not being used
-        k = 0
-        while k < num_poles:
-            if k in ConnPoles[:,0]: #Check if pole number is in the connections list
-                k += 1 #pole has a connection, move on
-            else:
-                #Pole does not have a connection 
-                #Check if closest connection to pole is under 50 m
-                ConnPoles = ReassignConnection_PoleNoConnections(ConnPoles,j,DistanceConnPoles[:,k],MaxDistancePoleConn)
-                if ConnPoles == 0:
-                    #could not find connection for pole
-                    #randomly reassign a pole and restart
-                    changePole = randint(0,num_poles-1)
-                    indexes_poles[changePole,:] = PolePlacementNoConflicts(indexes_conn,indexes_excl,indexes_poles,num_poles,x_index_max,y_index_max,exclusion_buffer)
-                    break #retry from the beginning (going back to Check 1)
-                
-                else:
-                    #successful reassignment, recheck Check 3
-                    k = 0
-        #If made it through all the checks (code runs to here) can calculate the total wire distances between poles and connections
-        goodToGo = 1
-    
-    #Calculate the wire distances from all the poles and connections
-    total_wire_distance = sum(ConnPoles[:,1])
-    return ConnPoles, total_wire_distance
-#==============================================================================        
-                    
-  
-#==============================================================================
-# Maximum Number of Connection per Pole Constraint hit, See if any of the connections can be reassigned
-def ReassignConnection_PoleConnMaxConstraint(ConnPoles,j,ConnectionDistancesToPole,MaxDistancePoleConn):
-    for i in range(len(ConnPoles[:,0])):
-        if ConnPoles[i,1] == j:
-            #Find second smallest distance to pole
-            m1, m2 = float('inf'),float('inf')
-            for x in ConnectionDistancesToPole:
-                if x <= m1:
-                    m1,m2 = x,m1
-                elif x < m2:
-                    m2 = x
-            #Check if the second shortest is less than the allowable distance
-            #if it is replace and return the new pole and distance
-            if m2 < MaxDistancePoleConn:
-                ConnPoles[i,1] = m2
-                new_index = np.where(ConnectionDistancesToPole == m2)
-                ConnPoles[i,0] = new_index[1][0]
-                return ConnPoles
-    #If none of the second distances are less than allowable return 0 to signal this error        
-    return 0
-#============================================================================== 
-
-#==============================================================================
-# Pole with no connections, reassign connection to empty pol
-def ReassignConnection_PoleNoConnections(ConnPoles,j,PoleDistancesToConnections,MaxDistancePoleConn):
-    min_poleConnDistance = np.min(PoleDistancesToConnections)
-    if min_poleConnDistance < MaxDistancePoleConn:
-        i = np.argmin(PoleDistancesToConnections)
-        ConnPoles[i,1] = min_poleConnDistance
-        ConnPoles[i,0] = j
-        return ConnPoles #return revised solution
-    return 0
-#==============================================================================
-     
+# =============================================================================
+# 
+# #==============================================================================
+# # Match Connections to Poles
+# def MatchConnectionsPoles(indexes_conn,indexes_excl,indexes_poles,d_EW_between,d_NS_between,MaxDistancePoleConn,num_poles,x_index_max,y_index_max,exclusion_buffer,PoleConnMax):
+#     ConnPoles = np.zeros((len(indexes_conn[:,0]),2)) #first value is pole, second value is distance to that pole
+# 
+#     i = 0
+#     goodToGo = 0
+#     while goodToGo == 0:
+#         # First Calculate distances between connections and poles
+#         DistanceConnPoles = DistanceBWindexes(indexes_conn,indexes_poles,d_EW_between,d_NS_between)
+#         #Check 1) If any of the shortest distances are farther than the allowable distance from pole
+#         while i < len(ConnPoles[:,0]): #cycle through all connections
+#             ConnPoles[i,0] = np.argmin(DistanceConnPoles[i,:])
+#             ConnPoles[i,1] = np.min(DistanceConnPoles[i,:])
+#             if ConnPoles[i,1] > MaxDistancePoleConn:
+#                 #randomly move one pole and complete restart
+#                 changePole = randint(0,num_poles-1)
+#                 indexes_poles[changePole,:] = PolePlacementNoConflicts(indexes_conn,indexes_excl,indexes_poles,num_poles,x_index_max,y_index_max,exclusion_buffer)
+#                 i = 0
+#             else:
+#                 i += 1
+#                 #All connections to poles are under the allowable distance
+#         #Check 2) If there are no more than max allowable connections per pole
+#         j = 0
+#         while j < num_poles:
+#             if np.count_nonzero(ConnPoles[:,0]==j) > PoleConnMax: #If over limit get new connection assignment
+#                 ConnPoles = ReassignConnection_PoleConnMaxConstraint(ConnPoles,j,DistanceConnPoles[j,:])
+#                 if ConnPoles == 0: #This means no other second shortest distances where less than allowable distance from pole
+#                     #now need to randomly replace a random pole and try it all again
+#                     changePole = randint(0,num_poles-1)
+#                     indexes_poles[changePole,:] = PolePlacementNoConflicts(indexes_conn,indexes_excl,indexes_poles,num_poles,x_index_max,y_index_max,exclusion_buffer)
+#                     break #retry from the beginning (going back to Check 1)
+#                 else: 
+#                     #successful reassignment of connection, recheck Check 2 from beginning
+#                     j = 0
+#             else:
+#                 #No Poles have over the maximum allowable connections, moving forward
+#                 j += 1
+#         #Check 3) If any of the poles are not being used
+#         k = 0
+#         while k < num_poles:
+#             if k in ConnPoles[:,0]: #Check if pole number is in the connections list
+#                 k += 1 #pole has a connection, move on
+#             else:
+#                 #Pole does not have a connection 
+#                 #Check if closest connection to pole is under 50 m
+#                 ConnPoles = ReassignConnection_PoleNoConnections(ConnPoles,j,DistanceConnPoles[:,k],MaxDistancePoleConn)
+#                 if ConnPoles == 0:
+#                     #could not find connection for pole
+#                     #randomly reassign a pole and restart
+#                     changePole = randint(0,num_poles-1)
+#                     indexes_poles[changePole,:] = PolePlacementNoConflicts(indexes_conn,indexes_excl,indexes_poles,num_poles,x_index_max,y_index_max,exclusion_buffer)
+#                     break #retry from the beginning (going back to Check 1)
+#                 
+#                 else:
+#                     #successful reassignment, recheck Check 3
+#                     k = 0
+#         #If made it through all the checks (code runs to here) can calculate the total wire distances between poles and connections
+#         goodToGo = 1
+#     
+#     #Calculate the wire distances from all the poles and connections
+#     total_wire_distance = sum(ConnPoles[:,1])
+#     return ConnPoles, total_wire_distance
+# #==============================================================================        
+#                     
+# =============================================================================
+# =============================================================================
+#   
+# #==============================================================================
+# # Maximum Number of Connection per Pole Constraint hit, See if any of the connections can be reassigned
+# def ReassignConnection_PoleConnMaxConstraint(ConnPoles,j,ConnectionDistancesToPole,MaxDistancePoleConn):
+#     for i in range(len(ConnPoles[:,0])):
+#         if ConnPoles[i,1] == j:
+#             #Find second smallest distance to pole
+#             m1, m2 = float('inf'),float('inf')
+#             for x in ConnectionDistancesToPole:
+#                 if x <= m1:
+#                     m1,m2 = x,m1
+#                 elif x < m2:
+#                     m2 = x
+#             #Check if the second shortest is less than the allowable distance
+#             #if it is replace and return the new pole and distance
+#             if m2 < MaxDistancePoleConn:
+#                 ConnPoles[i,1] = m2
+#                 new_index = np.where(ConnectionDistancesToPole == m2)
+#                 ConnPoles[i,0] = new_index[1][0]
+#                 return ConnPoles
+#     #If none of the second distances are less than allowable return 0 to signal this error        
+#     return 0
+# #============================================================================== 
+# 
+# #==============================================================================
+# # Pole with no connections, reassign connection to empty pol
+# def ReassignConnection_PoleNoConnections(ConnPoles,j,PoleDistancesToConnections,MaxDistancePoleConn):
+#     min_poleConnDistance = np.min(PoleDistancesToConnections)
+#     if min_poleConnDistance < MaxDistancePoleConn:
+#         i = np.argmin(PoleDistancesToConnections)
+#         ConnPoles[i,1] = min_poleConnDistance
+#         ConnPoles[i,0] = j
+#         return ConnPoles #return revised solution
+#     return 0
+# #==============================================================================
+#      
+# =============================================================================
                    
 #=============================================================================
 # Record to Record Travel Optimization
-def RRT(PoleConnMax, deviation_factor,objpre,nrep,indexes_conn,indexes_poles,indexes_excl,d_EW_between,d_NS_between,MaxDistancePoleConn,num_poles,x_index_max,y_index_max,exclusion_buffer,np_penalty_factor,mc_penalty_factor,md_penalty_factor):
+def RRT(PoleConnMax, deviation_factor,objpre,nrep,indexes_conn,indexes_poles,indexes_excl,d_EW_between,d_NS_between,MaxDistancePoleConn,num_poles,x_index_max,y_index_max,exclusion_buffer):
     #initialize RRT parameters
     record = np.copy(objpre)
     bestsoln =np.copy(indexes_poles)
     deviation = deviation_factor*record
-    record_records = np.zeros(10000)
+    record_records = np.zeros(nrep)
     
     for j in range(nrep):
         #Save old solution
@@ -273,7 +278,7 @@ def RRT(PoleConnMax, deviation_factor,objpre,nrep,indexes_conn,indexes_poles,ind
 
         #Create new solution
         changePole = randint(0,num_poles-1) 
-        indexes_poles[changePole,:] = PolePlacementNoConflicts(indexes_conn,indexes_excl,indexes_poles,num_poles,x_index_max,y_index_max,exclusion_buffer)
+        indexes_poles[changePole,:] = PolePlacementNoConflicts(indexes_conn,indexes_excl,indexes_poles,num_poles,x_index_max,y_index_max,exclusion_buffer,d_EW_between,d_NS_between)
         
         #Evaluate new solution
         ConnPoles, total_wire_distance, max_distance_penalty, max_connectionsPerPole_penalty, num_poles_in_use = MatchConnectionsPolesSimple(indexes_conn,indexes_poles,d_EW_between,d_NS_between,MaxDistancePoleConn,num_poles)
@@ -322,26 +327,12 @@ def PenaltiesToCost(total_wire_distance, num_poles_in_use, ConnPoles,PoleConnMax
                
 
 # Run Full Code ===============================================================
-if __name__ == "__main__":
+def PolePlacementOpt(devs,nreps,reformatScaler,exclusion_buffer,MaxDistancePoleConn,PoleConnMax):
     
-    ## Cycle through combinations of variable inputs to find best solution
-    #First vary nrep and deviations
-    devs = [0.005]
-    nreps = [10000] #flattens out around 6000
-    
+    ## Cycle through combinations of variable inputs to find best solutions    
     for deviation_factor in devs:
         for nrep in nreps:
-            ## Variable Inputs    
-            reformatScaler = 5 #parameter to decrease the resolution of image
-            exclusion_buffer = 20 #meters that poles need to be form exclusions (other poles, exclusions, and connections)
-            MaxDistancePoleConn = 50 #(m) the maximum distance allowed for a pole to be from a connection
-            PoleConnMax = 20 #maximum number of connections allowed per pole
-            #nrep = 500
-            np_penalty_factor = 0
-            mc_penalty_factor = 0
-            md_penalty_factor = 0
-            #deviation_factor = 0.05
-        
+                               
             ## Initialization for Optimization
             t0 = time.time()
             #Import csv file which has been converted from the klm file
@@ -382,6 +373,8 @@ if __name__ == "__main__":
             #Determine distance between reformatted pixels (between values in the array)
             d_EW_between = d_EW/width #m
             d_NS_between = d_NS/height #m
+            filename = "d_between_%s.csv" %str(reformatScaler)
+            np.savetxt(filename,[d_EW_between,d_NS_between],delimiter=",")
 
             #Load exlusion map, if not available then perform
             #This gathers the exclusion array indexes
@@ -424,8 +417,8 @@ if __name__ == "__main__":
         
             #Random Pole Placement Initialization 
             #t0 = time.time()
-            num_poles = len(indexes_conn[:,0])
-            indexes_poles = RandomPolePlacement(indexes_conn,indexes_excl,num_poles,width,height,exclusion_buffer)
+            num_poles = 40#len(indexes_conn[:,0])
+            indexes_poles = RandomPolePlacement(indexes_conn,indexes_excl,num_poles,width,height,exclusion_buffer,d_EW_between,d_NS_between)
             #t1 = time.time()
             #total_time = t1-t0
             #print(total_time)
@@ -440,7 +433,7 @@ if __name__ == "__main__":
     
             ## Perform RRT
             #t0 = time.time()
-            bestsoln_indexes_poles, record, record_records = RRT(PoleConnMax,deviation_factor,objpre,nrep,indexes_conn,indexes_poles,indexes_excl,d_EW_between,d_NS_between,MaxDistancePoleConn,num_poles,width,height,exclusion_buffer,np_penalty_factor,mc_penalty_factor,md_penalty_factor)
+            bestsoln_indexes_poles, record, record_records = RRT(PoleConnMax,deviation_factor,objpre,nrep,indexes_conn,indexes_poles,indexes_excl,d_EW_between,d_NS_between,MaxDistancePoleConn,num_poles,width,height,exclusion_buffer)
             #t1 = time.time()
             #total_time = t1-t0
             #print(total_time)    
@@ -459,7 +452,8 @@ if __name__ == "__main__":
                     max_conn = np.count_nonzero(ConnPoles[:,0]==j)
                     if max_conn > max_conn_t:
                         max_conn_t = np.copy(max_conn)    
-    
+            
+           
             #Print Outcomes
             if record_check == record:
                 print("Solution found, total wire distance is: "+str(total_wire_distance))
@@ -478,26 +472,198 @@ if __name__ == "__main__":
             
             ## Save combination of variable input results
             results = [record,max_distance_penalty,max_connectionsPerPole_penalty,num_poles_in_use,total_time]
-            filename = "RRT_Results_wCost_WireSqr_nrep"+str(nrep)+"_devfactor"+str(deviation_factor)+".csv"
+            filename = "RRT_Results_wCost_WireSqr_nrep"+str(nrep)+"_devfactor"+str(deviation_factor)+"_numPoles"+str(num_poles)+".csv"
             np.savetxt(filename,results, delimiter=",")
-            filename_records = "RRT_Record_Results_wCost_WireSqr_nrep"+str(nrep)+"_devfactor"+str(deviation_factor)+".csv"
+            filename_records = "RRT_Record_Results_wCost_WireSqr_nrep"+str(nrep)+"_devfactor"+str(deviation_factor)+"_numPoles"+str(num_poles)+".csv"
             np.savetxt(filename_records,record_records, delimiter=",")
-            filename_solution_indexes_poles = "indexes_poles_wCost_WireSqr_nrep"+str(nrep)+"_devfactor"+str(deviation_factor)+".csv"
+            filename_solution_indexes_poles = "indexes_poles_wCost_WireSqr_nrep"+str(nrep)+"_devfactor"+str(deviation_factor)+"_numPoles"+str(num_poles)+".csv"
             np.savetxt(filename_solution_indexes_poles,indexes_poles, delimiter=",")
-            filename_ConnPoles = "ConnPoles_wCost_WireSqr_nrep"+str(nrep)+"_devfactor"+str(deviation_factor)+".csv" 
+            filename_ConnPoles = "ConnPoles_wCost_WireSqr_nrep"+str(nrep)+"_devfactor"+str(deviation_factor)+"_numPoles"+str(num_poles)+".csv" 
             np.savetxt(filename_ConnPoles,ConnPoles, delimiter=",")
+#==============================================================================
 
-    #Setup pole location optimization
-    #Use Record to Record Travel Optimization
-    #Pyomo does use external functions well in the objective function
-    #Check uGrid Net rules 
-    #constraints: (these are now set as penalties)
-    # 1) can't be in exclusion zone
-    # 2) minimum and maximum number of connections in proximity to pole
-    # 3) minimum and maximum distnace of pole from connection
-    #objective: main objective shortest overall wire, penalties can be added in for constraints and minimizing number of poles
+#=============================================================================
+# Duplicate Row Checking (islanding within grid)
+def Check_DuplicateRows(Wiring_Pole_Matches):
+    Wiring_Pole_Matches.sort(axis=1)
+    determinate = np.linalg.det(Wiring_Pole_Matches) #if != 0 then full rank (no duplicate rows)
+    return determinate
+#==============================================================================
+
+#==============================================================================
+#Calculate the total distance of wiring solution
+def Wiring_Distance(Wiring_Pole_Matches,indexes_poles_in_use):
+    num_poles_in_use = len(Wiring_Pole_Matches[:,0])
+    try:
+        filename = "d_between_%s.csv" %str(reformatScaler)
+        d_bw = np.loadtxt(filename,delimiter=",")
+    except:
+        print("Can't load the distances between indexes file")
+    d_EW_between = d_bw[0]
+    d_NS_between = d_bw[1]
+    DistanceBWPoles = np.zeros((len(Wiring_Pole_Matches[:,0]),len(Wiring_Pole_Matches[0,:])))
+    for o in range(len(Wiring_Pole_Matches[:,0])):
+        for p in range(len(Wiring_Pole_Matches[0,:])):
+            first_pole_index = np.copy(o) #m: gives the number of the first pole
+            second_pole_index = np.copy(Wiring_Pole_Matches[o,p]) #Wiring_Pole_Matches[m,n]: gives the number of the second pole
+            #if second_pole_index == num_poles_in_use then that is a "non-connection" with distance 0
+            if second_pole_index == len(Wiring_Pole_Matches[0,:]):
+                DistanceBWPoles[o,p] = 0
+            else:
+                #Calculate Distance between poles
+                indexes_poles_in_use[first_pole_index,0]
+                A_sqr = math.pow(((indexes_poles_in_use[first_pole_index,0]-indexes_poles_in_use[second_pole_index,0])*d_EW_between),2)
+                B_sqr = math.pow(((indexes_poles_in_use[first_pole_index,1]-indexes_poles_in_use[second_pole_index,0])*d_NS_between),2)
+                DistanceBWPoles[o,p] = np.sqrt(A_sqr+B_sqr)
+    Total_BW_Pole_Distance = np.sum(DistanceBWPoles)
+    return Total_BW_Pole_Distance
+#==============================================================================
+
+
+#==============================================================================
+# RRT for wiring
+def RRT_Wiring(nrep,objpre,Wiring_Pole_Matches,deviation_factor,indexes_poles_in_use):
     
-    #Implement Record to Record Travel Optimization
+    #initialize RRT parameters
+    record = np.copy(objpre) #Total BW Pole Distance
+    bestsoln =np.copy(Wiring_Pole_Matches) #Wiring_Pole_Matches
+    deviation = deviation_factor*record
+    record_records = np.zeros(nrep)
+    num_poles_in_use = len(Wiring_Pole_Matches[:,0])
+    
+    for j in range(nrep):
+        #Save old solution
+        oldsoln = np.copy(Wiring_Pole_Matches)
+        
+        #Create new solution, and make sure it doesn't create a duplicate row (islanding within grid)
+        goodToGo = 0
+        while goodToGo == 0:
+            #Save old solution for this internal checking loop
+            oldsolnint = np.copy(Wiring_Pole_Matches)
+            choose_1stPole = randint(0,num_poles_in_use-1)
+            choose_connectionSpot = randint(0,num_poles_in_use-1)
+            choose_2ndPole = randint(0,num_poles_in_use) #this includes a "non-connection"
+            Wiring_Pole_Matches[choose_1stPole,choose_connectionSpot] = choose_2ndPole
+            determinate = Check_DuplicateRows(Wiring_Pole_Matches)
+            if determinate == 0:
+                Wiring_Pole_Matches = np.copy(oldsolnint)
+                goodToGo = 0 #there are duplicates 
+            else: 
+                goodToGo = 1 #No duplicates, move forward with new solution
+                   
+        #Evaluate new solution
+        tempobj = Wiring_Distance(Wiring_Pole_Matches,indexes_poles_in_use)#Calculate Cost of Solution
+        
+        if tempobj < record+deviation:
+            objnow = np.copy(tempobj)
+            if objnow < record:
+                record = np.copy(objnow)
+                bestsoln = np.copy(Wiring_Pole_Matches)
+                print("Best record is (total distance): " + str(record))
+        else:
+            Wiring_Pole_Matches = np.copy(oldsoln)
+        
+        record_records[j] = np.copy(record)
+        
+    return bestsoln, record, record_records 
+#==============================================================================
+    
+
+#==============================================================================
+def WiringPlacementOpt(nreps,devs,reformatScaler):
+    t0 = time.time()
+    
+    ## Cycle through combinations of variable inputs to find best solutions    
+    for deviation_factor in devs:
+        for nrep in nreps:
+            
+            # Load Pole_indexes, ConnPoles
+            try:
+                filename_solution_indexes_poles = "indexes_poles_wCost_WireSqr_nrep10000_devfactor0.005_numPoles40.csv" #This has the best solution
+                indexes_poles = np.loadtxt(filename_solution_indexes_poles, delimiter=",")
+                filename_ConnPoles = "ConnPoles_wCost_WireSqr_nrep10000_devfactor0.005_numPoles40.csv" 
+                ConnPoles = np.loadtxt(filename_ConnPoles, delimiter=",")
+            except:
+                print("Files for pole indexes not found using this nrep and deviation factor")
+                quit()
+    
+            #Load/Create New List of Pole Indexes of those poles in use
+            try:
+                filename_indexpolesinuse = "Indexes_Poles_InUse_wCost_WireSqr_nrep_nrep10000_devfactor0.005numPoles40.csv" 
+                indexes_poles_in_use = np.loadtxt(filename_indexpolesinuse, delimiter=",")
+            except:
+                indexes_poles_in_use = []
+                for j in range(len(indexes_poles[:,0])):
+                    if np.count_nonzero(ConnPoles[:,0]==j) > 0:
+                        #Store that pole's indexes
+                        indexes_poles_in_use.append(indexes_poles[j,:])
+                filename_indexpolesinuse = "Indexes_Poles_InUse_wCost_WireSqr_nrep_nrep10000_devfactor0.005_numPoles40.csv" 
+                np.savetxt(filename_indexpolesinuse,indexes_poles_in_use, delimiter=",")
+            num_poles_in_use = len(indexes_poles_in_use[:,0])
+    
+            #Initialize pole connections by random placement/matching
+            goodToGo = 0
+            while goodToGo == 0:
+                Wiring_Pole_Matches = np.random.randint(num_poles_in_use+1, size=(num_poles_in_use, 4)) #the plus one is to create a "non-connection"
+                #Check for perfect matching connections (ensuring there aren't two+ islanded systems of wiring)
+                determinate = Check_DuplicateRows(Wiring_Pole_Matches)
+                if determinate == 0:
+                    #There are duplicate rows (therefore numerous islanded wiring systems)
+                    goodToGo = 0
+                else:
+                    goodToGo = 1
+            
+            #Calculate Total Wire Distance of initial solution
+            Total_BW_Pole_Distance = Wiring_Distance(Wiring_Pole_Matches,indexes_poles_in_use)
+            
+            #Perform optimization
+            bestsoln, record, record_records = RRT_Wiring(nrep,Total_BW_Pole_Distance,Wiring_Pole_Matches,deviation_factor,indexes_poles_in_use)
+            
+            #Check RRT solution is accurate
+            record_test = Wiring_Distance(bestsoln,indexes_poles_in_use)
+            if record_test != record:
+                print("RRT validation not met, check results!")
+               
+            t1 = time.time()
+            total_time = t1-t0
+            print("Total run time is:")
+            print(total_time)
+            
+            ## Save combination of variable input results
+            results = [record,total_time]
+            filename = "RRT_Wiring_Results_nrep"+str(nrep)+"_devfactor"+str(deviation_factor)+"_numPoles40.csv"
+            np.savetxt(filename,results, delimiter=",")
+            filename_records = "RRT_Record_Wiring_Results_nrep"+str(nrep)+"_devfactor"+str(deviation_factor)+"_numPoles40.csv"
+            np.savetxt(filename_records,record_records, delimiter=",")
+            filename_solution_WiringConnections = "WiringConnections_nrep"+str(nrep)+"_devfactor"+str(deviation_factor)+"_numPoles40.csv"
+            np.savetxt(filename_solution_WiringConnections,bestsoln, delimiter=",")
+             
+
+    
+#==============================================================================
+
+
+    
+
+
+if __name__ == "__main__":
+    
+    #Set Inputs for optimizations
+    devs_poles = [0.005]
+    nreps_poles = [6000] #flattens out around 6000
+    reformatScaler = 5 #parameter to decrease the resolution of image
+    exclusion_buffer = 20 #meters that poles need to be form exclusions (other poles, exclusions, and connections)
+    MaxDistancePoleConn = 50 #(m) the maximum distance allowed for a pole to be from a connection
+    PoleConnMax = 20 #maximum number of connections allowed per pole
+    
+    devs_wires = [0.001]
+    nreps_wires = [100000] 
+    
+    #Run Pole Placement Optimization, output is saved as csv files
+    PolePlacementOpt(devs_poles,nreps_poles,reformatScaler,exclusion_buffer,MaxDistancePoleConn,PoleConnMax)
+    
+    #Run Wiring Placement Optimization, output is saved as csv files
+    WiringPlacementOpt(nreps_wires,devs_wires,reformatScaler)
 
 
     
