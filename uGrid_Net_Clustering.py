@@ -142,66 +142,46 @@ def ClusteringConnections(indexes_conn,num_clusters):
     return Y_ ,means
 #==============================================================================
 
-#==============================================================================
-# Exclusion testing around y
-def ExtendY(index_x,index_y,index_excl_comp,max_y,range_limit):
-    index_y_og = np.copy(index_y)
-    for i in range(range_limit):
-        #try up one in y
-        index_y = index_y_og + i
-        if index_y > 0 and index_y < max_y:
-            index_pole_comp = index_x + (index_y*0.00001)
-            if index_pole_comp in index_excl_comp:
-                #if this spot bad try down one in y with that x
-                index_y = index_y_og - i
-                if index_y > 0 and index_y < max_y:
-                    index_pole_comp = index_x + (index_y*0.00001)
-                    if index_pole_comp in index_excl_comp:
-                        return 9000000, 0
-                    else:
-                        return index_x, index_y
-            else:
-                return index_x, index_y
-#==============================================================================
-        
 
 #==============================================================================
-# Find pole location around clustering mean that is not an exclusion spot
+# Find non-exlcusion spot in growing circular manner
 def FindNonExclusionSpot(index_x_og, index_y_og, index_excl_comp,range_limit,max_y,max_x):
     for i in range(range_limit):
-        #go up and down in y, with current x
-        index_y = np.copy(index_y_og)
-        index_x = np.copy(index_x_og)
-        index_x_new, index_y_new = ExtendY(index_x,index_y,index_excl_comp,max_y,range_limit)
-        if index_x_new == 9000000: #no new solution found
-            #try go up one in x
-            index_x = index_x_og + i
-            if index_x > 0 and index_x < max_x:
-                index_pole_comp = index_x + (index_y*0.00001)
-                if index_pole_comp in index_excl_comp:
-                    #go up and down in y, with x+1
-                    index_x_new, index_y_new = ExtendY(index_x,index_y,index_excl_comp,max_y,range_limit)
-                    if index_x_new == 9000000: #no new solution found
-                        #try go down one (from original) from x
-                        index_x = index_x_og - i
-                        if index_x > 0 and index_x < max_x:
-                            index_pole_comp = index_x + (index_y*0.00001)
-                            if index_pole_comp in index_excl_comp:
-                                #go up and down in y, with x+1
-                                index_x_new, index_y_new = ExtendY(index_x,index_y,index_excl_comp,max_y,range_limit)
-                                if not index_x_new == 9000000: #no new solution found
-                                    #new solution found, otherwise continuing to next iteration of i
-                                    return index_x_new, index_y_new
-                            else:
-                                return index_x, index_y 
-                    else:
-                        return index_x_new, index_y_new
-                else: 
-                    return index_x, index_y
-        else:
-            return index_x_new,index_y_new
-        
+        #Define limits
+        x_min = int(index_x_og - i)
+        if x_min < 0:
+            x_min = 0
+        x_max = int(index_x_og + i)
+        if x_max > max_x:
+            x_max = max_x
+        y_min = int(index_y_og - i)
+        if y_min < 0:
+            y_min = 0
+        y_max = int(index_y_og + i)
+        if y_max > max_y:
+            y_max = 0
+        #Testing around spot
+        #xmin and xmax
+        for y in range(y_min,y_max):
+            index_pole_comp = x_min + (y*0.00001)
+            if not index_pole_comp in index_excl_comp:
+                return x_min, y
+            index_pole_comp = x_max + (y*0.00001)
+            if not index_pole_comp in index_excl_comp:
+                return x_min, y
+        #ymin and ymax
+        for x in range(x_min,x_max):
+            index_pole_comp = x + (y_min*0.00001)
+            if not index_pole_comp in index_excl_comp:
+                return x, y_min
+            index_pole_comp = x + (y_max*0.00001)
+            if not index_pole_comp in index_excl_comp:
+                return x, y_max
+    
+    #if nothing found in within range limit, return dummy number
+    return 9000000,0
 #==============================================================================
+
 
 #==============================================================================
 # Matching poles and connections by closest distance
@@ -217,8 +197,114 @@ def MatchPolesConn(indexes_conn,indexes_poles,d_EW_between,d_NS_between):
 #===============================================================================
 # Match Connections to Poles Simplified Version
 #Instead of trying to find a feasible solution, just create penalties that can be weighted in the optimization
-def PolePlacement(PoleConnMax,reformatScaler,num_clusters,exclusionBuffer,range_limit):                   
+def PolePlacement(reformatScaler,num_clusters,exclusionBuffer,range_limit,indexes_conn,indexes_excl,height,width,d_EW_between,d_NS_between):                    
+      
+    #Get initial solution of pole indexes with Gaussian Mean Clustering
+    #The mean of the clusters is the initial pole placement
+    ConnPole_initial, initial_pole_placement = ClusteringConnections(indexes_conn,num_clusters)
+    indexes_poles = np.copy(initial_pole_placement)
+    #ConnPole: the index is the connection # and the value is the pole
+    #initial_pole_placement: the index is the pole #, the numbers are the indexes of that pole
+
+    #Check if pole placed on exclusion
+    #If in exclusion zone, circle outwardly to find non-exclusion spot
+    #Turn 2D index arrays to 1D for comparison
+    index_pole_comp = initial_pole_placement[:,0] + np.dot(initial_pole_placement[:,1],0.00001)
+    index_excl_comp = indexes_excl[:,0] + np.dot(indexes_excl[:,1],0.00001)
+    for i in range(len(index_pole_comp)):
+        if index_pole_comp[i] in index_excl_comp:
+            #check surrounding areas for non-exclusion spot
+            index_x_new, index_y_new = FindNonExclusionSpot(initial_pole_placement[i,0], initial_pole_placement[i,1], index_excl_comp,range_limit,height,width)
+            if index_x_new == 9000000: #arbitary large number to act as signal
+                print("No new pole placement found for pole " +str(i)+", try expanding pole placement region.")
+            else:
+                #replace pole index location
+                indexes_poles[i,:] = [index_x_new, index_y_new]
+                #print("New pole placed at "+str(i)+" pole")
+        
+    #Match Connections and Poles  
+    ConnPoles = MatchPolesConn(indexes_conn,indexes_poles,d_EW_between,d_NS_between)
+    #Find in use poles and create new pole indexes
+    indexes_poles_inuse_x = []
+    indexes_poles_inuse_y = []
+    for i in range(len(indexes_poles)):
+        if i in ConnPoles[:,0]:
+            indexes_poles_inuse_x.append(indexes_poles[i,0])
+            indexes_poles_inuse_y.append(indexes_poles[i,1])
+    indexes_poles_in_use_og = np.transpose(np.array([indexes_poles_inuse_x,indexes_poles_inuse_y]))
+    #Redetermine match Connections and Poles  
+    ConnPoles = MatchPolesConn(indexes_conn,indexes_poles_in_use_og,d_EW_between,d_NS_between)
+    #Calculate the wire distances from all the poles and connections
+    total_wire_distance = sum(ConnPoles[:,1])
+    #Calculate Cost due to poles and distances
+    total_distance_BWPoles, OnOff, DistancesBWPoles, num_conn_per_pole, total_time = WiringAlg(indexes_poles_in_use_og,d_EW_between,d_NS_between,"False")
+    totalCost = PenaltiesToCost(total_wire_distance, num_clusters, ConnPoles,total_distance_BWPoles)
     
+    
+    #Determine if any poles are too close by testing removing each pole
+    Best_pole_indexes = np.copy(indexes_poles_in_use_og)
+    Best_totalCost = np.copy(totalCost)
+    Best_ConnPoles = np.copy(ConnPoles)
+    Best_total_wire_distance = np.copy(total_wire_distance)
+    Best_total_distance_BWPoles = np.copy(total_distance_BWPoles)
+    Best_OnOff = np.copy(OnOff)
+    for i in range(len(indexes_poles_in_use_og)):
+        indexes_poles_in_use = np.delete(indexes_poles_in_use_og,i,0)
+        ConnPoles = MatchPolesConn(indexes_conn,indexes_poles_in_use,d_EW_between,d_NS_between)
+        total_wire_distance = sum(ConnPoles[:,1])
+        total_distance_BWPoles, OnOff, DistancesBWPoles, num_conn_per_pole, total_time = WiringAlg(indexes_poles_in_use,d_EW_between,d_NS_between,"False")
+        totalCost = PenaltiesToCost(total_wire_distance, num_clusters, ConnPoles,total_distance_BWPoles)
+        if totalCost < Best_totalCost:
+            Best_pole_indexes = np.copy(indexes_poles_in_use)
+            Best_totalCost = np.copy(totalCost)
+            Best_ConnPoles = np.copy(ConnPoles)
+            Best_total_wire_distance = np.copy(total_wire_distance)
+            Best_total_distance_BWPoles = np.copy(total_distance_BWPoles)
+            Best_OnOff = np.copy(OnOff)
+       
+    return Best_OnOff, Best_ConnPoles, Best_total_wire_distance, Best_total_distance_BWPoles, Best_pole_indexes, Best_totalCost
+
+#==============================================================================
+             
+ 
+ 
+
+#==============================================================================
+# Calculate the Cost of the penalties to use as the minimizing optimization value
+def PenaltiesToCost(total_wire_distance, num_poles_in_use, ConnPoles,total_distance_BWPoles):
+    #Load all Econ input
+    Econ_Parameters = pd.read_excel('uGrid_Input.xlsx', sheet_name = 'Econ')
+
+    #Pull out costs needed for penalties
+    Cost_Dist_wire = Econ_Parameters['Cost_Dist_wire'][0]
+    Cost_Trans_wire = Econ_Parameters['Cost_Trans_wire'][0]
+    Cost_Pole = Econ_Parameters['Cost_Pole'][0] + Econ_Parameters['Cost_Pole_Trans'][0]
+    #Cost_Dist_Board = Econ_Parameters['Cost_Dist_Board'][0]
+
+    #Calculate pole setup cost
+    total_dist_wire_cost = Cost_Dist_wire*(total_wire_distance/1000) #cost is in km, wire distance is in m
+    total_trans_wire_cost = Cost_Trans_wire*(total_distance_BWPoles/1000)
+    #make total_wire_distance doubly as penalty
+    total_pole_cost = num_poles_in_use*Cost_Pole
+    #num_dist_boards = 0
+    meter_cost_poles= []
+    for j in range(num_poles_in_use):
+        conn_per_pole = int(np.ceil(np.count_nonzero(ConnPoles[:,0]==j)))
+        meter_cost = -0.0042*conn_per_pole**5 + 0.1604*conn_per_pole**4 - 2.3536*conn_per_pole**3 + 16.776*conn_per_pole**2 - 59.5*conn_per_pole + 111.25
+        meter_cost_poles.append(meter_cost)
+    total_smart_meter_cost = sum(meter_cost_poles)
+    
+    Total_cost = total_dist_wire_cost + total_trans_wire_cost + total_pole_cost + total_smart_meter_cost
+    
+    return Total_cost
+#==============================================================================        
+ 
+
+##=============================================================================
+# Decide the number of poles and their places by cycling through PolePlacement
+def PoleOpt(reformatScaler,minPoles,maxPoles,exclusionBuffer,range_limit,MaxDistancePoleConn,repeats):
+    
+    #Load Files
     #Gather the information needed
     #Import csv file which has been converted from the klm file
     #This gives the points of connections which are houses to link to the distribution grid
@@ -297,140 +383,122 @@ def PolePlacement(PoleConnMax,reformatScaler,num_clusters,exclusionBuffer,range_
             index_csv_name = "indexes_conn_reformatted_%s.csv" %str(reformatScaler)
             np.savetxt(index_csv_name,indexes_conn, delimiter=",")
     
-    #Get initial solution of pole indexes with Gaussian Mean Clustering
-    #The mean of the clusters is the initial pole placement
-    ConnPole_initial, initial_pole_placement = ClusteringConnections(indexes_conn,num_clusters)
-    indexes_poles = np.copy(initial_pole_placement)
-    #ConnPole: the index is the connection # and the value is the pole
-    #initial_pole_placement: the index is the pole #, the numbers are the indexes of that pole
-
-    #Check if pole placed on exclusion
-    #If in exclusion zone, circle outwardly to find non-exclusion spot
-    #Turn 2D index arrays to 1D for comparison
-    index_pole_comp = initial_pole_placement[:,0] + np.dot(initial_pole_placement[:,1],0.00001)
-    index_excl_comp = indexes_excl[:,0] + np.dot(indexes_excl[:,1],0.00001)
-    for i in range(len(index_pole_comp)):
-        if index_pole_comp[i] in index_excl_comp:
-            #check surrounding areas for non-exclusion spot
-            index_x_new, index_y_new = FindNonExclusionSpot(initial_pole_placement[i,0], initial_pole_placement[i,1], index_excl_comp,range_limit,height,width)
-            if index_x_new == 9000000: #arbitary large number to act as signal
-                print("No new pole placement found for pole " +str(i)+", try expanding pole placement region.")
-            else:
-                #replace pole index location
-                indexes_poles[i,:] = [index_x_new, index_y_new]
-                print("New pole placed at "+str(i)+" pole")
-        
-    #Match Connections and Poles  
-    ConnPoles = MatchPolesConn(indexes_conn,indexes_poles,d_EW_between,d_NS_between)
-    #Find in use poles and create new pole indexes
-    indexes_poles_inuse_x = []
-    indexes_poles_inuse_y = []
-    for i in range(len(indexes_poles)):
-        if i in ConnPoles[:,0]:
-            indexes_poles_inuse_x.append(indexes_poles[i,0])
-            indexes_poles_inuse_y.append(indexes_poles[i,1])
-    indexes_poles_in_use_og = np.transpose(np.array([indexes_poles_inuse_x,indexes_poles_inuse_y]))
-    #Redetermine match Connections and Poles  
-    ConnPoles = MatchPolesConn(indexes_conn,indexes_poles_in_use_og,d_EW_between,d_NS_between)
-    #Calculate the wire distances from all the poles and connections
-    total_wire_distance = sum(ConnPoles[:,1])
-    #Calculate Cost due to poles and distances
-    totalCost = PenaltiesToCost(total_wire_distance, num_clusters, ConnPoles,PoleConnMax)
-    
-    
-    #Determine if any poles are too close by testing removing each pole
-    Best_pole_indexes = np.copy(indexes_poles_in_use_og)
-    Best_totalCost = np.copy(totalCost)
-    Best_ConnPoles = np.copy(ConnPoles)
-    Best_total_wire_distance = np.copy(total_wire_distance)
-    for i in range(len(indexes_poles_in_use_og)):
-        indexes_poles_in_use = np.delete(indexes_poles_in_use_og,i,0)
-        ConnPoles = MatchPolesConn(indexes_conn,indexes_poles_in_use,d_EW_between,d_NS_between)
-        total_wire_distance = sum(ConnPoles[:,1])
-        totalCost = PenaltiesToCost(total_wire_distance, num_clusters, ConnPoles,PoleConnMax)
-        if totalCost < Best_totalCost:
-            Best_pole_indexes = np.copy(indexes_poles_in_use)
-            Best_totalCost = np.copy(totalCost)
-            Best_ConnPoles = np.copy(ConnPoles)
-            Best_total_wire_distance = np.copy(total_wire_distance)
-    
-    #Calculate Cost due to poles and distances
-    totalCost = PenaltiesToCost(total_wire_distance, num_clusters, ConnPoles,PoleConnMax)
-    
-    return Best_ConnPoles, Best_total_wire_distance, Best_pole_indexes, Best_totalCost, indexes_conn, indexes_excl 
-#==============================================================================
-             
- 
- 
-
-#==============================================================================
-# Calculate the Cost of the penalties to use as the minimizing optimization value
-def PenaltiesToCost(total_wire_distance, num_poles_in_use, ConnPoles,PoleConnMax):
-    #Load all Econ input
-    Econ_Parameters = pd.read_excel('uGrid_Input.xlsx', sheet_name = 'Econ')
-
-    #Pull out costs needed for penalties
-    Cost_Dist_wire = Econ_Parameters['Cost_Dist_wire'][0]
-    Cost_Pole = Econ_Parameters['Cost_Pole'][0] + Econ_Parameters['Cost_Pole_Trans'][0]
-    #Cost_Dist_Board = Econ_Parameters['Cost_Dist_Board'][0]
-
-    #Calculate pole setup cost
-    total_wire_cost = Cost_Dist_wire*((total_wire_distance/1000)**2) #cost is in km, wire distance is in m
-    #make total_wire_distance doubly as penalty
-    total_pole_cost = num_poles_in_use*Cost_Pole
-    #num_dist_boards = 0
-    meter_cost_poles= []
-    for j in range(num_poles_in_use):
-        conn_per_pole = int(np.ceil(np.count_nonzero(ConnPoles[:,0]==j)/PoleConnMax))
-        meter_cost = -0.0042*conn_per_pole**5 + 0.1604*conn_per_pole**4 - 2.3536*conn_per_pole**3 + 16.776*conn_per_pole**2 - 59.5*conn_per_pole + 111.25
-        meter_cost_poles.append(meter_cost)
-    total_smart_meter_cost = sum(meter_cost_poles)
-    
-    Total_cost = total_wire_cost + total_pole_cost + total_smart_meter_cost
-    
-    return Total_cost
-#==============================================================================        
- 
-
-##=============================================================================
-# Decide the number of poles and their places by cycling through PolePlacement
-def PoleOpt(PoleConnMax,reformatScaler,minPoles,maxPoles,exclusionBuffer,range_limit,MaxDistancePoleConn):
-    for i in range(minPoles,maxPoles):
-        for j in range(5): #repeat at each cluster level to ensuring repeatability
+    #Find Poles, Wiring, and Cost
+    lookback = 3 * repeats
+    record_bests = np.zeros((maxPoles-minPoles)*repeats)
+    p = 0
+    i = minPoles
+    NoDecrease = 0
+    totalCost_soln = 9999999999999 #initialize with very high totalCost_soln
+    while i < maxPoles and NoDecrease == 0:
+        for j in range(repeats): #repeat at each cluster level to ensuring repeatability
             t0 = time.time()
-            print("Number of poles tried is "+str(i)+".")
-            ConnPoles, total_wire_distance, indexes_poles, totalCost, indexes_conn, indexes_excl  = PolePlacement(PoleConnMax,reformatScaler,i,exclusionBuffer,range_limit)
-            # Save initial as best solutions
-            if i == minPoles:
+            print("Number of poles tried is "+str(i)+" with "+str(j+1)+" out of "+str(repeats)+" attempts.") 
+            OnOff, ConnPoles, total_dist_wire_distance, total_trans_wire_distance, indexes_poles, totalCost  = PolePlacement(reformatScaler,i,exclusionBuffer,range_limit,indexes_conn,indexes_excl,height,width,d_EW_between,d_NS_between)
+            if totalCost < totalCost_soln and max(ConnPoles[:,1]) < MaxDistancePoleConn:
                 ConnPole_soln = np.copy(ConnPoles)
-                total_wire_distance_soln = np.copy(total_wire_distance)
+                total_dist_wire_distance_soln = np.copy(total_dist_wire_distance)
+                total_trans_wire_distance_soln = np.copy(total_trans_wire_distance)
                 indexes_poles_soln = np.copy(indexes_poles)
                 totalCost_soln = np.copy(totalCost)
                 num_initial_clusters = np.copy(i)
-                #save lowest cost solution as best solution
-            else:
-                if totalCost < totalCost_soln and max(ConnPoles[:,1] < MaxDistancePoleConn):
-                    ConnPole_soln = np.copy(ConnPoles)
-                    total_wire_distance_soln = np.copy(total_wire_distance)
-                    indexes_poles_soln = np.copy(indexes_poles)
-                    totalCost_soln = np.copy(totalCost)
-                    num_initial_clusters = np.copy(i)
+                OnOff_soln = np.copy(OnOff)
+            print("Best total cost for this iteration is $"+str(int(totalCost))+", and the current best solution is $"+str(int(totalCost_soln))+".")
+            print("The maximum distance between house and pole is "+str(int(max(ConnPoles[:,1])))+"m, and limit is "+str(MaxDistancePoleConn)+"m.")
+            record_bests[p] = totalCost
+            p += 1
             t1 = time.time()
             total_time = t1-t0
-            print("Time for this pole count is "+str(total_time)+".")
+            print("Time for this pole count is "+str(round(total_time, 2))+".")
+            #Check if the solution has not gotten better for the last 3 pole # increases, if so solution is found and exit this loop
+            if p > lookback:
+                if min(record_bests[p-lookback:p]) > totalCost_soln:
+                    NoDecrease = 1            
+        i += 1
+                    
         
     #Save solution pole indexes
     filename = "indexes_poles_reformatted_%s_soln.csv" %(str(reformatScaler))
     np.savetxt(filename,indexes_poles_soln, delimiter=",")
     filename = "ConnPoles_reformatted_%s_soln.csv" %(str(reformatScaler))
     np.savetxt(filename,ConnPole_soln, delimiter=",")
+    filename_records = "Wiring_OnOff_alg.csv"
+    np.savetxt(filename_records,OnOff_soln, delimiter=",")
     
-    return num_initial_clusters,ConnPole_soln, total_wire_distance_soln, indexes_poles_soln, totalCost_soln, indexes_conn, indexes_excl
+    return OnOff_soln,num_initial_clusters,ConnPole_soln, total_dist_wire_distance_soln, total_trans_wire_distance_soln, indexes_poles_soln, totalCost_soln, indexes_conn, indexes_excl
 #==============================================================================
-                
+    
+#==============================================================================
+# Plot between pole wiring
+def PoleWiring(OnOff, indexes_poles):
+
+    num_poles = len(indexes_poles[:,0])
+    goodToGo = 0
+    for i in range(num_poles):
+        for j in range(i):
+            if OnOff[i,j] == 1:
+                match = np.array([[indexes_poles[i,0],indexes_poles[i,1]],[indexes_poles[j,0],indexes_poles[j,1]]]) 
+                if goodToGo == 0:
+                    goodToGo = 1
+                    wiringMatrix = match
+                else:
+                    wiringMatrix = np.concatenate((wiringMatrix,match),axis=1)
+    
+    #Plot
+    num_match = len(wiringMatrix[0,:])
+    fig, ax = plt.subplots()
+    for i in range(0,num_match-1,2):
+        j = i + 1
+        plt.plot(wiringMatrix[:,i],wiringMatrix[:,j])
+    #plt.scatter(indexes_poles[:,0],indexes_poles[:,1],s=2,c='b')
+    ax.set_aspect('equal')
+    plotname = "WiringBWPoles.png"
+    plt.savefig(plotname)
+    plt.show()
+#=============================================================================
+          
+#==============================================================================
+# plot all wiring
+def AllWiringPlot(OnOff, indexes_poles, indexes_conn, ConnPoles):
+    
+    #Pole Wiring
+    num_poles = len(indexes_poles[:,0])
+    goodToGo = 0
+    for i in range(num_poles):
+        for j in range(i):
+            if OnOff[i,j] == 1:
+                match = np.array([[indexes_poles[i,0],indexes_poles[i,1]],[indexes_poles[j,0],indexes_poles[j,1]]]) 
+                if goodToGo == 0:
+                    goodToGo = 1
+                    wiringMatrix = match
+                else:
+                    wiringMatrix = np.concatenate((wiringMatrix,match),axis=1)
+    
+    #Plot
+    num_match = len(wiringMatrix[0,:])
+    fig, ax = plt.subplots()
+    for i in range(0,num_match-1,2):
+        j = i + 1
+        plt.plot(wiringMatrix[:,i],wiringMatrix[:,j],color='black',linewidth=2)
+    
+    #Connections wiring
+    num_conn = len(indexes_conn[:,0])
+    for i in range(num_conn):
+        pole = int(ConnPoles[i,0])
+        x_s = [indexes_conn[i,0],indexes_poles[pole,0]]
+        y_s = [indexes_conn[i,1],indexes_poles[pole,1]]
+        plt.plot(x_s,y_s,color='green',linewidth=1)
+    
+    #Save and Show
+    ax.set_aspect('equal')
+    plotname = "AllWiring.png"
+    plt.savefig(plotname)
+    plt.show()
+    
+    
 ##=============================================================================
 # Plot Pole Placement Solution
-def PlotPoleSolutions(indexes_poles,indexes_conn,indexes_excl,ConnPoles):
+def PlotPoleSolutions(OnOff,indexes_poles,indexes_conn,indexes_excl,ConnPoles):
     cmap =  plt.cm.get_cmap('hsv', len(indexes_poles[:,0]))
         
     fig, ax = plt.subplots()
@@ -452,40 +520,12 @@ def PlotPoleSolutions(indexes_poles,indexes_conn,indexes_excl,ConnPoles):
     plt.savefig(plotname)
     plt.show()
     
-            
+    PoleWiring(OnOff, indexes_poles)
+
+    AllWiringPlot(OnOff, indexes_poles, indexes_conn, ConnPoles)          
 
 ##=============================================================================
-   
-#==============================================================================
-# Check for islands by checking if duplicate rows in onoff matrix with determinate
-def CheckForIslands(OnOff): #this will also find rings - need to adjust
-    num_poles = len(OnOff[:,0])
-    DuplicateList = np.zeros((num_poles,num_poles))
 
-    for i in range(num_poles):
-        l = 1 #start at 1, so the first value will be the pole number
-        DuplicateList
-        for j in range(num_poles):
-            if OnOff[i,j] == 1:
-                DuplicateList[i,l] = j
-                l += 1
-
-    #Check Determinate
-    determinate = np.linalg.det(OnOff) #if != 0 then full rank (no duplicate rows)
-    
-    return determinate
-#==============================================================================
-    
-#==============================================================================
-# Check for islands using sparse connected components from scipy
-def CheckForIslands2(OnOff):
-    from scipy.sparse import csr_matrix
-    from scipy.sparse.csgraph import connected_components
-    graph = csr_matrix(OnOff)
-    n_components, labels = connected_components(csgraph=graph, directed=False, return_labels=True)
-
-    return n_components
-#=============================================================================
 
 #==============================================================================
 # Internal connected components recursive. This works because undirected
@@ -522,129 +562,17 @@ def ConnectedComponents(OnOff):
 #==============================================================================
             
 
-
-#==============================================================================
-# Wiring Optimization
-def WiringOpt(reformatScaler,nrep,deviation_factor):
-    
-    t0 = time.time()
-
-    #Load solution pole indexes
-    filename = "indexes_poles_reformatted_%s_soln.csv" %(str(reformatScaler))
-    indexes_poles = np.loadtxt(filename, delimiter=",")
-    filename = "d_between_%s.csv" %str(reformatScaler)
-    [d_EW_between,d_NS_between] = np.loadtxt(filename,delimiter=",")
-    
-    #Calculate Distances between all poles
-    DistancesBWPoles = DistanceBWindexes(indexes_poles,indexes_poles,d_EW_between,d_NS_between)
-    num_poles = len(indexes_poles[:,0])
-    
-    #Create on/off matrix with random initial solution
-    OnOff = np.random.randint(2, size=(num_poles, num_poles))
-    
-    #Calculate total distance of random initial solution
-    total_distance = 0
-    for i in range(num_poles):
-        for j in range(num_poles-(i+1)):
-            k = i+1+j
-            if OnOff[i,k] == 1:
-                total_distance = total_distance + DistancesBWPoles[i,k]
-                
-    #Deploy RRT to determine best OnOff Matrix
-    #initialize RRT parameters
-    record = np.copy(total_distance) #Total in use BW Pole Distance
-    bestsoln = np.copy(OnOff) #Wiring_Pole_Matches
-    deviation = deviation_factor*record
-    record_records = np.zeros(nrep)
-    
-    for n in range(nrep):
-        print(n)
-        t1 = time.time()
-        print(t1-t0)
-        #Save old solution
-        oldsoln = np.copy(OnOff)
-        
-        #Create new solution, and make sure it doesn't create a duplicate row (islanding within grid)
-        #Replace 10 spots at a time
-        for p in range(10):
-            goodToGo = 0
-            while goodToGo == 0:
-                #Save old solution for this internal checking loop
-                oldsoln_int = np.copy(OnOff)
-                choose_1stPole = randint(0,num_poles-1)
-                choose_2ndPole = randint(0,num_poles-(choose_1stPole+1)) 
-                #switch on/off
-                if OnOff[choose_1stPole,choose_2ndPole] == 0:
-                    OnOff[choose_1stPole,choose_2ndPole] = 1
-                else:
-                    OnOff[choose_1stPole,choose_2ndPole] = 0
-                components = CheckForIslands2(OnOff)
-                if components == 1:
-                    goodToGo = 1 #no duplicate rows (islands within network) continue on with solution
-                else:
-                    OnOff = np.copy(oldsoln_int)
-          
-        #Evaluate new solution
-        tempobj = 0
-        for i in range(num_poles):
-            for j in range(num_poles-(i+1)):
-                k = i+1+j
-                if OnOff[i,k] == 1:
-                    tempobj = tempobj + DistancesBWPoles[i,k]
-        
-        if tempobj < record+deviation:
-            objnow = np.copy(tempobj)
-            if objnow < record:
-                record = np.copy(objnow)
-                deviation = record*deviation_factor
-                bestsoln = np.copy(OnOff)
-                print("Best record is (total distance): " + str(record))
-        else:
-           OnOff = np.copy(oldsoln)
-        
-        record_records[n] = np.copy(record)
-    
-    t1 = time.time()
-    print("Total opt time is "+str(t1-t0)+".")
-    
-    #Verify solution matches record
-    #Evaluate bestsoln
-    obj = 0
-    for i in range(num_poles):
-        for j in range(num_poles-(i+1)):
-            k = i+1+j
-            if bestsoln[i,k] == 1:
-                obj = obj + DistancesBWPoles[i,k]
-    if obj != record:
-        print("Verification did not work, need to check code, fun fun")
-        
-    #Save Results
-    records = [record,t1-t0]
-    filename = "RRT_Wiring_Records_nrep"+str(nrep)+"_devfactor"+str(deviation_factor)+"_wdevchange.csv"
-    np.savetxt(filename,records, delimiter=",")
-    filename_records = "RRT_Record_Wiring_OnOff_nrep"+str(nrep)+"_devfactor"+str(deviation_factor)+"_wdevchange.csv"
-    np.savetxt(filename_records,bestsoln, delimiter=",")
-    filename_records = "RRT_Record_Wiring_RecordRecord_nrep"+str(nrep)+"_devfactor"+str(deviation_factor)+"_wdevchange.csv"
-    np.savetxt(filename_records,record_records, delimiter=",")
-    filename_records = "RRT_Record_Wiring_DistancesBWPoles_nrep"+str(nrep)+"_devfactor"+str(deviation_factor)+"_wdevchange.csv"
-    np.savetxt(filename_records,DistancesBWPoles, delimiter=",")
-
-                
-    return record, bestsoln, DistancesBWPoles,record_records      
-    
-#==============================================================================
-
-
 #==============================================================================
 # Wiring Algorithm
-def WiringAlg():
+def WiringAlg(indexes_poles,d_EW_between,d_NS_between,standalone):
     t0 = time.time()
 
     #Load solution pole indexes
-    filename = "indexes_poles_reformatted_%s_soln.csv" %(str(reformatScaler))
-    indexes_poles = np.loadtxt(filename, delimiter=",")
-    filename = "d_between_%s.csv" %str(reformatScaler)
-    [d_EW_between,d_NS_between] = np.loadtxt(filename,delimiter=",")
+    if standalone == "True":
+        filename = "indexes_poles_reformatted_%s_soln.csv" %(str(reformatScaler))
+        indexes_poles = np.loadtxt(filename, delimiter=",")
+        filename = "d_between_%s.csv" %str(reformatScaler)
+        [d_EW_between,d_NS_between] = np.loadtxt(filename,delimiter=",")
     
     #Calculate Distances between all poles
     DistancesBWPoles = DistanceBWindexes(indexes_poles,indexes_poles,d_EW_between,d_NS_between)
@@ -691,7 +619,8 @@ def WiringAlg():
         OnOff_temp[x,y] = 0
         OnOff_temp[y,x] = 0 #make other matching pair 0 as well
         # Check for islands
-        components, visited = ConnectedComponents(OnOff)
+        components, visited = ConnectedComponents(OnOff_temp)
+        #PoleWiring(OnOff_temp, indexes_poles) #check solution
         if components == 1: #no islands change OnOff to remove that connection
             OnOff = np.copy(OnOff_temp)
         #If islands don't change OnOff pernament solution
@@ -705,15 +634,6 @@ def WiringAlg():
                 
     t1 = time.time()
     total_time = t1-t0
-        
-    #Save Results
-    records = [total_distance,total_time]
-    filename = "Wiring_Records_alg.csv"
-    np.savetxt(filename,records, delimiter=",")
-    filename_records = "Wiring_OnOff_alg.csv"
-    np.savetxt(filename_records,OnOff, delimiter=",")
-    filename_records = "Wiring_DistancesBWPoles_alg.csv"
-    np.savetxt(filename_records,DistancesBWPoles, delimiter=",")
     
     return total_distance, OnOff, DistancesBWPoles, num_conn_per_pole, total_time
     
@@ -723,23 +643,24 @@ def WiringAlg():
 if __name__ == "__main__":
     
     #Set Inputs for optimizations
-    reformatScaler = 5 #parameter to decrease the resolution of image (speeds up processing)
-    exclusionBuffer = 2 #meters that poles need to be form exclusions (other poles, exclusions, and connections)
-    MaxDistancePoleConn = 50 #(m) the maximum distance allowed for a pole to be from a connection
-    PoleConnMax = 20 #maximum number of connections allowed per pole
-    minPoles = 30
-    maxPoles = 31
-    range_limit = 500
-    nrep = 100000
-    deviation_factor = 0.01
+    Net_Parameters = pd.read_excel('uGrid_Input.xlsx', sheet_name = 'Net')
+    reformatScaler = Net_Parameters['reformatScaler'][0] #parameter to decrease the resolution of image (speeds up processing)
+    exclusionBuffer = Net_Parameters['exclusionBuffer'][0]#meters that poles need to be form exclusions (other poles, exclusions, and connections)
+    MaxDistancePoleConn = Net_Parameters['MaxDistancePoleConn'][0]#(m) the maximum distance allowed for a pole to be from a connection
+    minPoles = Net_Parameters['minPoles'][0]
+    maxPoles = Net_Parameters['maxPoles'][0]
+    range_limit = Net_Parameters['range_limit'][0]
+    repeats = Net_Parameters['repeats'][0]
     
     #Run Pole Placement Optimization, output is saved as csv files
-    #num_initial_clusters,ConnPole_soln, total_wire_distance_soln, indexes_poles_soln, totalCost_soln, indexes_conn, indexes_excl = PoleOpt(PoleConnMax,reformatScaler,minPoles,maxPoles,exclusionBuffer,range_limit,MaxDistancePoleConn)    
-    #PlotPoleSolutions(indexes_poles_soln,indexes_conn,indexes_excl,ConnPole_soln)
+    OnOff, num_initial_clusters,ConnPole_soln, total_wire_distance_soln, total_trans_wire_distance_soln, indexes_poles_soln, totalCost_soln, indexes_conn, indexes_excl = PoleOpt(reformatScaler,minPoles,maxPoles,exclusionBuffer,range_limit,MaxDistancePoleConn,repeats)    
+    PlotPoleSolutions(OnOff,indexes_poles_soln,indexes_conn,indexes_excl,ConnPole_soln)
     
-    #Run Wiring Optimization
-    #total_distance, OnOff, DistancesBWPoles,record_records = WiringOpt(reformatScaler,nrep,deviation_factor)
-    total_distance, OnOff, DistancesBWPoles, num_conn_per_pole, total_time = WiringAlg()
+    if max(ConnPole_soln[:,1]) > MaxDistancePoleConn:
+        print("Distances between houses and poles is too far, the farthest is "+str(max(ConnPole_soln[:,1]))+"m. Increase the maximum limit for number of poles")
+    
+    #Run Wiring Optimization as Standalone with previous solution
+    #total_distance, OnOff, DistancesBWPoles, num_conn_per_pole, total_time = WiringAlg(0,0,0,"True")
 
 
     
