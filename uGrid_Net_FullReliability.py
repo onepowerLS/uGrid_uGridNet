@@ -1,3 +1,10 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Thu Mar  7 14:25:14 2019
+
+@author: Phy
+"""
+
 """
 Created on Thu Jan 10 09:20:26 2019
 
@@ -426,11 +433,11 @@ def PoleOpt(reformatScaler,minPoles,maxPoles,exclusionBuffer,range_limit,MaxDist
                     
         
     #Save solution pole indexes
-    filename = "indexes_poles_reformatted_%s_prob_%s_soln.csv" %(str(reformatScaler),str(prob))
+    filename = "indexes_poles_reformatted_%s_prob_%s_FullReliability_soln.csv" %(str(reformatScaler),str(prob))
     np.savetxt(filename,indexes_poles_soln, delimiter=",")
-    filename = "ConnPoles_reformatted_%s_prob_%s_soln.csv" %(str(reformatScaler),str(prob))
+    filename = "ConnPoles_reformatted_%s_prob_%s_FullReliability_soln.csv" %(str(reformatScaler),str(prob))
     np.savetxt(filename,ConnPole_soln, delimiter=",")
-    filename_records = "Wiring_OnOff_alg_prob_%s.csv" %(str(prob))
+    filename_records = "Wiring_OnOff_alg_prob_%s_FullReliability.csv" %(str(prob))
     np.savetxt(filename_records,OnOff_soln, delimiter=",")
     
     return Best_Reliability_Cost, OnOff_soln,num_initial_clusters,ConnPole_soln, total_dist_wire_distance_soln, total_trans_wire_distance_soln, indexes_poles_soln, totalCost_soln, indexes_conn, indexes_excl
@@ -460,8 +467,8 @@ def PoleWiring(OnOff, indexes_poles):
         plt.plot(wiringMatrix[:,i],wiringMatrix[:,j])
     #plt.scatter(indexes_poles[:,0],indexes_poles[:,1],s=2,c='b')
     ax.set_aspect('equal')
-    plotname = "WiringBWPoles_prob_%s.png" %(str(prob))
-    plt.savefig(plotname)
+    plotname = "WiringBWPoles_prob_%s_FullReliability.png" %(str(prob))
+    plt.savefig(plotname, dpi=600)
     plt.show()
 #=============================================================================
           
@@ -499,8 +506,8 @@ def AllWiringPlot(OnOff, indexes_poles, indexes_conn, ConnPoles):
     
     #Save and Show
     ax.set_aspect('equal')
-    plotname = "AllWiring_prob_%s.png" %(str(prob))
-    plt.savefig(plotname)
+    plotname = "AllWiring_prob_%s_FullReliability.png" %(str(prob))
+    plt.savefig(plotname, dpi=600)
     plt.show()
     
     
@@ -516,16 +523,16 @@ def PlotPoleSolutions(OnOff,indexes_poles,indexes_conn,indexes_excl,ConnPoles):
                 plt.scatter(indexes_conn[j, 0], indexes_conn[j, 1], s=1,c=cmap(i),marker='.')#, color=color)
         plt.scatter(indexes_poles[i,0],indexes_poles[i,1],s=3,c=cmap(i), marker= '^')
     ax.set_aspect('equal')
-    plotname = "SolutionPlot_prob_%s.png" %(str(prob))
-    plt.savefig(plotname)
+    plotname = "SolutionPlot_prob_%s_FullReliability.png" %(str(prob))
+    plt.savefig(plotname, dpi=600)
     plt.show()
 
     fig, ax = plt.subplots()
     plt.scatter(indexes_excl[:,0],indexes_excl[:,1],s=1,c ='r',marker= 's')
     plt.scatter(indexes_poles[:,0],indexes_poles[:,1], s=1, c='b', marker='s')
     ax.set_aspect('equal')
-    plotname = "ExclusionsPlotwSolnPoles_prob_%s.png" %(str(prob))
-    plt.savefig(plotname)
+    plotname = "ExclusionsPlotwSolnPoles_prob_%s_FullReliability.png" %(str(prob))
+    plt.savefig(plotname, dpi=600)
     plt.show()
     
     PoleWiring(OnOff, indexes_poles)
@@ -673,15 +680,18 @@ def WiringAlg(ConnPoles,prob, Cost_kWh, wiring_trans_cost, restoration_time,Long
             Edges = LineLosses(OnOff,ConnPoles,num_poles,Long_exc_min,Lat_exc_min,d_EW_between,d_NS_between,indexes_poles)          
             total_load_loss_risk = sum(Edges[:,2])
             Reliability_Risk_Cost = total_load_loss_risk * prob * Cost_kWh * restoration_time
-            #Solve for total distance and calc cost
-            total_distance = 0
-            for i in range(num_poles):
-                for j in range(0,i):
-                    if OnOff[i,j] == 1:
-                        total_distance = total_distance + DistancesBWPoles[i,j]
-            Wire_Cost = total_distance * wiring_trans_cost
-            Best_Total_Cost = Wire_Cost+Reliability_Risk_Cost #save as current best
-            goodToGo = 1
+            if Reliability_Risk_Cost == 0:
+                #Solve for total distance and calc cost
+                total_distance = 0
+                for i in range(num_poles):
+                    for j in range(0,i):
+                        if OnOff[i,j] == 1:
+                            total_distance = total_distance + DistancesBWPoles[i,j]
+                Wire_Cost = total_distance * wiring_trans_cost
+                Best_Total_Cost = Wire_Cost+Reliability_Risk_Cost #save as current best
+                goodToGo = 1
+            else:
+                num_conn_per_pole += 1
         else:
             num_conn_per_pole += 1 #This is occasionally exceeding number of poles, need to put in error fixing block
     Best_Reliability_Cost = np.copy(Reliability_Risk_Cost)
@@ -706,20 +716,21 @@ def WiringAlg(ConnPoles,prob, Cost_kWh, wiring_trans_cost, restoration_time,Long
             Edges = LineLosses(OnOff_temp,ConnPoles,num_poles,Long_exc_min,Lat_exc_min,d_EW_between,d_NS_between,indexes_poles)
             total_load_loss_risk = sum(Edges[:,2])
             Reliability_Risk_Cost = total_load_loss_risk * prob * Cost_kWh * restoration_time
-            #Solve for total distance and calc cost
-            total_distance = 0
-            for i in range(num_poles):
-                for j in range(i):
-                    if OnOff_temp[i,j] == 1:
-                        total_distance = total_distance + DistancesBWPoles[i,j]
-            Wire_Cost = total_distance * wiring_trans_cost
-            Total_Cost = Wire_Cost+Reliability_Risk_Cost
-            if Total_Cost < Best_Total_Cost: #Save best solution based on no islands and lowest cost
-                OnOff = np.copy(OnOff_temp)
-                Best_Total_Cost = np.copy(Total_Cost)
-                Best_Reliability_Cost = np.copy(Reliability_Risk_Cost)
-                Best_Wire_Cost = np.copy(Wire_Cost)
-                Best_total_distance = np.copy(total_distance) 
+            if Reliability_Risk_Cost == 0:
+                #Solve for total distance and calc cost
+                total_distance = 0
+                for i in range(num_poles):
+                    for j in range(i):
+                        if OnOff_temp[i,j] == 1:
+                            total_distance = total_distance + DistancesBWPoles[i,j]
+                Wire_Cost = total_distance * wiring_trans_cost
+                Total_Cost = Wire_Cost+Reliability_Risk_Cost
+                if Total_Cost < Best_Total_Cost: #Save best solution based on no islands and lowest cost
+                    OnOff = np.copy(OnOff_temp)
+                    Best_Total_Cost = np.copy(Total_Cost)
+                    Best_Reliability_Cost = np.copy(Reliability_Risk_Cost)
+                    Best_Wire_Cost = np.copy(Wire_Cost)
+                    Best_total_distance = np.copy(total_distance) 
         #print(Best_Total_Cost)
         #print(Best_Reliability_Cost)
         #print("********************")
@@ -764,7 +775,7 @@ if __name__ == "__main__":
     
     #Save total cost
     Costs = [Best_Reliability_Cost, totalCost_soln,total_wire_distance_soln, total_trans_wire_distance_soln]
-    filename = "Costs_reformatted_%s_prob_%s_soln.csv" %(str(reformatScaler),str(prob))
+    filename = "Costs_reformatted_%s_prob_%s_FullReliability_soln.csv" %(str(reformatScaler),str(prob))
     np.savetxt(filename,Costs, delimiter=",")
     
     #Run Wiring Optimization as Standalone with previous solution
