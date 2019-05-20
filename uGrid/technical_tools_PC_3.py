@@ -122,7 +122,7 @@ def getstate(PV_Pow,loadkW,battcase,BattkWh, peakload):
             current_state = 5
         else:
             current_state = 2 #genset is off
-    else: #PV on
+    else: #PV off
         if battcase == 4 or battcase == 3: 
             current_state = 1 #genset off
         else:
@@ -145,8 +145,9 @@ def setvars(current_state,I_b,lowlightcutoff,PV_Avail_Pow,timestep,T_amb,Genset_
     #"If Inverter makes up the difference from the Battery Bank, the (dis)charge is negative IF the generator is off"
  
     if current_state == 1:
+        # 100% Battery
         #" no generation equipment is on"
-        #" PV, ORC, Genset = 0 0 0 "
+        #" PV, Batt, Genset = 0 1 0 "
         PV_Pow = 0
         PV_Batt_Charge_Power = 0  #"there is no power from the PV"
  
@@ -157,7 +158,8 @@ def setvars(current_state,I_b,lowlightcutoff,PV_Avail_Pow,timestep,T_amb,Genset_
         Gen_Batt_Charge_Power = 0
         
     if current_state == 2:
-        #" PV, ORC, Genset = 1 0 0 "
+        # PV is enough or more than enough (possible battery charging), 0% generator
+        #" PV, Batt, Genset = 1 0 0 "
         PV_Pow = np.copy(PV_Avail_Pow)
         
         if diff > 0: #"if the difference is positive there is power available"
@@ -172,7 +174,10 @@ def setvars(current_state,I_b,lowlightcutoff,PV_Avail_Pow,timestep,T_amb,Genset_
         Gen_Batt_Charge_Power = 0
  
     if current_state == 4:
-        #" PV, ORC, Genset = 0 0 1 "
+        #no PV
+        #Generator supplies load (if load < GenKW then generator charges batteries)
+        #Potential for battery charging (no discharging)
+        #" PV, Batt, Genset = 0 0 1 "
         PV_Pow = 0
         PV_Batt_Charge_Power = 0  #"there is no power from the PV"
         Inv_Batt_Dis_P = 0  #"the inverter is not supplying any loads if the genset is on"
@@ -201,7 +206,8 @@ def setvars(current_state,I_b,lowlightcutoff,PV_Avail_Pow,timestep,T_amb,Genset_
 
 
     if current_state == 5:
-         #" PV, ORC, Genset = 1 0 1 "
+        #PV is working but doesn't meet demand, Gen set is on
+         #" PV, Batt, Genset = 1 0 1 "
          #" being in this state means battery is low AND PV inadequate to power load "
  
         PV_Pow = np.copy(PV_Avail_Pow)
@@ -223,6 +229,7 @@ def setvars(current_state,I_b,lowlightcutoff,PV_Avail_Pow,timestep,T_amb,Genset_
                 
                 genload = genload + Gen_Batt_Charge_Power
             else:
+                #This means the genload is the Genset Peak
                 #" supplying peak load "
                 Gen_Batt_Charge_Power = 0	
         else:
@@ -259,6 +266,8 @@ def fuel_calcs(genload,peakload,timestep):
 ## operation FUNCTION =====================================================================================================
 def operation(Batt_Charge_Limit,low_trip_perc,high_trip_perc,lowlightcutoff,Pmax_Tco, NOCT, smart, PVkW, BattkWh, peakload, LoadKW_MAK, FullYearEnergy, MSU_TMY,Solar_Parameters,trans_losses):
     from solar_calcs_PC_3 import SolarTotal
+    
+    # This code can and should be cleaned up *****
     
     # Month$ was replaced with Month_
 
@@ -356,6 +365,7 @@ def operation(Batt_Charge_Limit,low_trip_perc,high_trip_perc,lowlightcutoff,Pmax
             #" estimate load remaining until dawn for nighttimes (set to zero for daytimes) "
             if dayHour[h] > 17 or dayHour[h] < 7: #"determine the amount of load in kWh remaining from premidnight until dawn"
                 loadLeft[h] = FullYearEnergy.iloc[int(loadcounter-1),0]*0.75/5   #"Modify Nkau for number of households in community of interest"
+                #the FullYearEnergy provides the amount of forecasted nighttime load at each hour through the night (most loadleft at beginning of night, least load left at end of night)
             else:
                 loadLeft[h]=0 #"daytime load prediction not part of algorithm"
         else:
@@ -364,16 +374,6 @@ def operation(Batt_Charge_Limit,low_trip_perc,high_trip_perc,lowlightcutoff,Pmax
  
         #" how full are thermal, chemical storage? "
         battcase = storage_levels(Batt_SOC[h],low_trip,high_trip,BattkWh,loadLeft[h])
-        
-        #"check for error conditions" THIS WAS ALL COMMENTED OUT
-        #If ( (CSP_A = 0) AND (TES_SOC[h] > lowT_trip) ) Then
-            #" THROW ERROR "
-        #If ( (BattkWh = 0) AND (Batt_SOC[h] > low_trip) ) Then
-            #" THROW ERROR "
-        #If ( (I_b < lowlightcutoff) AND (PV_Power[h] > LoadkW[h]) ) Then
-            #" THROW ERROR "
-        #If ( (PV_kW = 0) AND (PV_Power[h] > LoadkW) ) Then
-            #" THROW ERROR "
  
         #" determine state "
         current_state = getstate(PV_Avail_Pow,LoadkW[h],battcase,BattkWh,peakload)
@@ -392,7 +392,7 @@ def operation(Batt_Charge_Limit,low_trip_perc,high_trip_perc,lowlightcutoff,Pmax
             Fuel_kg = 0
 
     	#"============================="
-        #" Update cumulative variables "
+        #" Update cumulative output variables "
         #"============================="
  
     	#"State variables"
