@@ -1,11 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Fri Mar 15 16:13:33 2019
-
-@author: Phy
-"""
-
-# -*- coding: utf-8 -*-
 """
 Created on Thu Jan 10 09:20:26 2019
 
@@ -15,6 +7,8 @@ areas and also an inputted generation station gps location, and determine where
 to place distribution poles and how to connect the distribution network together.
 
 This creates a LV 220V and MV 6.3kV network layout, where the MV works as a backbone.
+
+Including N-1 Reliability Cost-Benefit of Wiring Layout
 
 @author: Phy
 """
@@ -37,8 +31,6 @@ def GPStoDistance(Lat1,Lat2,Long1,Long2):
     return d
 #===============================================================================
 
-#==============================================================================
-# Extend in y direction
 
 #==============================================================================
 # Exclusion Mapper using 2nd array instead of increasing list of indexes
@@ -250,7 +242,7 @@ def PolePlacement(reformatScaler,num_clusters,exclusionBuffer,range_limit,indexe
  
 #==============================================================================
 # Calculate the Cost of the penalties to use as the minimizing optimization value
-def PenaltiesToCost(conn_wiring, LV_wiring, MV_wiring, num_LV_poles, num_MV_poles, ConnPoles):
+def PenaltiesToCost(reliability_cost, conn_wiring, LV_wiring, MV_wiring, num_LV_poles, num_MV_poles, ConnPoles):
     #Load all Econ input
     Econ_Parameters = pd.read_excel('uGrid_Input.xlsx', sheet_name = 'Econ')
 
@@ -284,7 +276,7 @@ def PenaltiesToCost(conn_wiring, LV_wiring, MV_wiring, num_LV_poles, num_MV_pole
         meter_cost_poles.append(meter_cost)
     Total_meter_cost = sum(meter_cost_poles)
     
-    Total_cost = Total_meter_cost + Total_Trans_Cost + Total_All_Wiring + Total_Cost_Pole
+    Total_cost = Total_meter_cost + Total_Trans_Cost + Total_All_Wiring + Total_Cost_Pole + reliability_cost
     
     return Total_cost
 #==============================================================================        
@@ -436,8 +428,8 @@ def Plot_AllPoles_AllWiring(POI,OnOff_MV, indexes_poles_MV, OnOff_groups, indexe
             plt.plot(x_s,y_s,color='orange',linewidth=1)
         
     ax.set_aspect('equal')
-    plotname = "AllPolesAllWiring.png"
-    plt.savefig(plotname)
+    plotname = "AllPolesAllWiring_Solution.png"
+    plt.savefig(plotname, dpi=600)
     plt.show()
 #==============================================================================
         
@@ -475,11 +467,53 @@ def ConnectedComponents(OnOff):
     
     return conn_comp, visited #return visited to varify everything has been visited
 #==============================================================================
-            
+
+#==============================================================================
+# Calc total load on poles
+def PoleLoads(ConnPoles,num_poles):
+    #ConnPoles is a single column numpy array
+    num_conns = len(ConnPoles)
+    load_per_connection = kW_max/num_conns
+    PoleLoad_matrix = np.zeros(num_poles)
+    for i in range(num_poles):
+        PoleLoad_matrix[i] = int(np.ceil(np.count_nonzero(ConnPoles==i)))*load_per_connection        
+    
+    return PoleLoad_matrix
+#==============================================================================
+    
+#==============================================================================
+# Edges matrix: n-1 on line loss. |pole 1|pole 2|load loss|
+def LineLosses(OnOff,ConnPoles,num_poles,Long_exc_min,Lat_exc_min,d_EW_between,d_NS_between,indexes_poles):
+    #POI of generation is always last pole in group for either MV or LV groups
+    POI = len(OnOff[0,:])-1
+    #Calculate load amount at each pole
+    PoleLoad_matrix = PoleLoads(ConnPoles,num_poles)
+    #Convert OnOff to list of edges (lines)
+    num_edges = int(np.sum(OnOff)/2)
+    Edges = np.zeros((num_edges,3))
+    edge_count = 0
+    for i in range(len(OnOff[:,0])):
+        for j in range(i):
+            if OnOff[i,j] == 1:
+                OnOff_temp = np.copy(OnOff)
+                OnOff_temp[i,j] = 0
+                OnOff_temp[j,i] = 0
+                #Calculate Load loss from this edge
+                visited = np.zeros(num_poles)
+                visited = Check_connections(POI,visited,OnOff_temp) #connected components to generation POI
+                load_loss = 0
+                for k in range(num_poles):
+                    if visited[k] == 0:
+                        load_loss = load_loss + PoleLoad_matrix[k]
+                #Append Edges matrix with edge and load loss from loss of that edge (line)
+                Edges[edge_count,:] = [i,j,load_loss]
+                edge_count += 1
+    return Edges
+#============================================================================== 
 
 #==============================================================================
 # Wiring Algorithm
-def WiringAlg(indexes_poles,d_EW_between,d_NS_between,standalone):
+def WiringAlg(ConnPoles,prob,Cost_kWh,restoration_time,indexes_poles,wiring_cost,d_EW_between,d_NS_between,standalone):
     t0 = time.time()
 
     #Load solution pole indexes
@@ -492,18 +526,22 @@ def WiringAlg(indexes_poles,d_EW_between,d_NS_between,standalone):
     #Calculate Distances between all poles
     DistancesBWPoles = DistanceBWindexes(indexes_poles,indexes_poles,d_EW_between,d_NS_between)
     num_poles = len(indexes_poles[:,0])
-         
-    
+             
     #Sort Distances between poles shortest connections to longest
     DistancesBWPoles_sorted = np.sort(DistancesBWPoles,axis=1) #First value in row will be 0, need to skip first column
     
     #Create Initial Solution
     goodToGo =  0
-    num_conn_per_pole = 1 #starting value
+    num_conn_per_pole = 3 #starting value
     while goodToGo == 0:
         OnOff = np.zeros((num_poles,num_poles)) 
         for i in range(num_poles):
             for j in range(1,num_conn_per_pole): #start at 1 to avoid first column of zeros. Nothing is stopping this from going over num_poles
+                #print("i")
+                #print(i)
+                #print("j")
+                #print(j)
+                #print("*********")
                 ind = np.where(DistancesBWPoles == DistancesBWPoles_sorted[i,j]) #This is going to give two values, need adjust so only one half of matrix is considered
                 #Place in use connection
                 x = ind[0][0]
@@ -514,6 +552,18 @@ def WiringAlg(indexes_poles,d_EW_between,d_NS_between,standalone):
         # Check for islands
         components, visited = ConnectedComponents(OnOff) #need to make sure OnOff is being filled in way that there aren't rows of zeros 
         if components == 1:
+            # Calculate Load loss risk
+            Edges = LineLosses(OnOff,ConnPoles,num_poles,Long_exc_min,Lat_exc_min,d_EW_between,d_NS_between,indexes_poles)          
+            total_load_loss_risk = sum(Edges[:,2])
+            Reliability_Risk_Cost = total_load_loss_risk * prob * Cost_kWh * restoration_time
+            #Solve for total distance and calc cost
+            total_distance = 0
+            for i in range(num_poles):
+                for j in range(0,i):
+                    if OnOff[i,j] == 1:
+                        total_distance = total_distance + DistancesBWPoles[i,j]
+            Wire_Cost = total_distance * wiring_cost
+            Best_Total_Cost = Wire_Cost+Reliability_Risk_Cost #save as current best
             goodToGo = 1
         elif num_conn_per_pole != num_poles:
             num_conn_per_pole += 1
@@ -521,7 +571,22 @@ def WiringAlg(indexes_poles,d_EW_between,d_NS_between,standalone):
             OnOff = np.ones((num_poles,num_poles)) #set all connected except diagonal is 0
             for k in range(num_poles):
                 OnOff[k,k] = 0
+            # Calculate Load loss risk
+            Edges = LineLosses(OnOff,ConnPoles,num_poles,Long_exc_min,Lat_exc_min,d_EW_between,d_NS_between,indexes_poles)          
+            total_load_loss_risk = sum(Edges[:,2])
+            Reliability_Risk_Cost = total_load_loss_risk * prob * Cost_kWh * restoration_time
+            #Solve for total distance and calc cost
+            total_distance = 0
+            for i in range(num_poles):
+                for j in range(0,i):
+                    if OnOff[i,j] == 1:
+                        total_distance = total_distance + DistancesBWPoles[i,j]
+            Wire_Cost = total_distance * wiring_cost
+            Best_Total_Cost = Wire_Cost+Reliability_Risk_Cost #save as current best
             goodToGo = 1
+    Best_Reliability_Cost = np.copy(Reliability_Risk_Cost)
+    Best_Wire_Cost = np.copy(Wire_Cost)
+    Best_total_distance = np.copy(total_distance) 
     
     #Remove connections, starting with longest working towards shortest, check to make sure not creating islands
     DistancesBWPoles_in_use = DistancesBWPoles_sorted[:,1:num_conn_per_pole] #truncate
@@ -536,22 +601,33 @@ def WiringAlg(indexes_poles,d_EW_between,d_NS_between,standalone):
         OnOff_temp[y,x] = 0 #make other matching pair 0 as well
         # Check for islands
         components, visited = ConnectedComponents(OnOff_temp)
-        #PoleWiring(OnOff_temp, indexes_poles) #check solution
-        if components == 1: #no islands and keeping meshed network, change OnOff to remove that connection
-            OnOff = np.copy(OnOff_temp)
-        #If islands don't change OnOff pernament solution
-
-    #Solve for total distance of final OnOff solution
-    total_distance = 0
-    for i in range(num_poles):
-        for j in range(0,i):
-            if OnOff[i,j] == 1:
-                total_distance = total_distance + DistancesBWPoles[i,j]
+        if components == 1: #no islands, Only move forward with best solution if no islands
+            # Calculate Load loss risk
+            Edges = LineLosses(OnOff_temp,ConnPoles,num_poles,Long_exc_min,Lat_exc_min,d_EW_between,d_NS_between,indexes_poles)
+            total_load_loss_risk = sum(Edges[:,2])
+            Reliability_Risk_Cost = total_load_loss_risk * prob * Cost_kWh * restoration_time
+            #Solve for total distance and calc cost
+            total_distance = 0
+            for i in range(num_poles):
+                for j in range(i):
+                    if OnOff_temp[i,j] == 1:
+                        total_distance = total_distance + DistancesBWPoles[i,j]
+            Wire_Cost = total_distance * wiring_cost
+            Total_Cost = Wire_Cost+Reliability_Risk_Cost
+            if Total_Cost < Best_Total_Cost: #Save best solution based on no islands and lowest cost
+                OnOff = np.copy(OnOff_temp)
+                Best_Total_Cost = np.copy(Total_Cost)
+                Best_Reliability_Cost = np.copy(Reliability_Risk_Cost)
+                Best_Wire_Cost = np.copy(Wire_Cost)
+                Best_total_distance = np.copy(total_distance) 
+        #print(Best_Total_Cost)
+        #print(Best_Reliability_Cost)
+        #print("********************")
                 
     t1 = time.time()
     total_time = t1-t0
     
-    return total_distance, OnOff, DistancesBWPoles, num_conn_per_pole, total_time
+    return Best_total_distance, OnOff, DistancesBWPoles, num_conn_per_pole, Best_Reliability_Cost,Best_Wire_Cost, total_time
     
 #==============================================================================
 
@@ -588,18 +664,6 @@ def POI_Pole(lat_Generation,long_Generation,Long_exc_min,Lat_exc_min,d_EW_betwee
     
     return closest_pole, indexes_gen
 #==============================================================================
-    
-#==============================================================================
-# Calculate amount of line losses
-def LineResistanceLosses():
-    #Line Losses (MW) = I^2R
-    #Need resistance in each type of line
-    #Need voltage of each line
-    #Need load power on each line (to get current)
-    line_losses = 0
-    return line_losses
-#==============================================================================
-    
 
 
 if __name__ == "__main__":
@@ -615,16 +679,17 @@ if __name__ == "__main__":
     maxPoles = 90#int(Net_Parameters['maxPoles'][0])
     range_limit = int(Net_Parameters['range_limit'][0])
     repeats = int(Net_Parameters['repeats'][0])
+    Cost_kWh =  Net_Parameters['Cost_kWh'][0]
     
     #Load Lat and Long Gen
     lat_Generation = m.radians(Net_Parameters['lat_Generation'][0])
     long_Generation = m.radians(Net_Parameters['long_Generation'][0])
     
-    repeats_MV_clusters = 5
-    repeats_LV_clusters = 5
+    repeats_MV_clusters = 10
+    repeats_LV_clusters = 10
     
-    repeats_LV_poles = 5
-    repeats_MV_poles = 5
+    repeats_LV_poles = 10
+    repeats_MV_poles = 10
     
     repeats_improved_solution = 3
     total_repeats_lookback = repeats_improved_solution*repeats_MV_poles*repeats_LV_poles
@@ -644,6 +709,21 @@ if __name__ == "__main__":
     LV_safetyfactor = 0.5
     LV_kW_safety = LV_kW*LV_safetyfactor
     
+    #Load all Econ input
+    Econ_Parameters = pd.read_excel('uGrid_Input.xlsx', sheet_name = 'Econ')
+    #Pull out wiring costs
+    Cost_LV_Wire = Econ_Parameters['Cost_Dist_wire'][0]/1000 #converting per km to per m 
+    Cost_MV_Wire = Econ_Parameters['Cost_Trans_wire'][0]/1000 #converting per km to per m 
+    
+    wiring_cost_MV = Cost_MV_Wire
+    probability_MV = int(Net_Parameters['prob_MV'][0])
+    restoration_time_MV = int(Net_Parameters['restoration_time_MV'][0])
+
+    
+    wiring_cost_LV = Cost_LV_Wire
+    probability_LV = int(Net_Parameters['prob_LV'][0])
+    restoration_time_LV = int(Net_Parameters['restoration_time_LV'][0])
+    
     #Collect Village Data (connections and exclusion zones)
     indexes_conn, indexes_excl, height, width, d_EW_between, d_NS_between,Long_exc_max, Long_exc_min,Lat_exc_max, Lat_exc_min = CollectVillageData()
     num_conns = len(indexes_conn[:,0])
@@ -651,6 +731,7 @@ if __name__ == "__main__":
     
     Best_Total_Cost_List = []
     Total_Cost_List = []
+    Total_Reliability_Cost = []
     NoDecrease = 0
     
     #Cycle through for best solution
@@ -693,8 +774,7 @@ if __name__ == "__main__":
                 closest_pole, indexes_gen = POI_Pole(lat_Generation,long_Generation,Long_exc_min,Lat_exc_min,d_EW_between,d_NS_between,indexes_poles_MV)
                 #add POI_MV to wiring for MV
                 indexes_Poles_MV_wPOI = np.concatenate((indexes_poles_MV, [indexes_gen]), axis=0)
-                total_distance_MV, OnOff_MV, DistancesBWPoles_MV, num_conn_per_pole_MV, total_time_MV = WiringAlg(indexes_Poles_MV_wPOI,d_EW_between,d_NS_between,"False")
-        
+                total_distance_MV, OnOff_MV, DistancesBWPoles_MV, num_conn_per_pole_MV, reliability_cost_MV, wire_cost_MV, total_time_MV = WiringAlg(ConnPoles_LVMV,probability_MV,Cost_kWh,restoration_time_MV,indexes_Poles_MV_wPOI,wiring_cost_MV,d_EW_between,d_NS_between,"False")
                 #Calculate LV Wiring Layout
                 #Group indexes according to connecting MV pole
                 group_indexes = []
@@ -713,17 +793,21 @@ if __name__ == "__main__":
                 OnOff_groups = []
                 DistanceBWPoles_groups = []
                 total_distance_LV = 0
+                reliability_cost_LV = []
                 for MV_pole_group in range(MV_pole_num):
-                    total_distance_temp, OnOff_temp, DistancesBWPoles_temp, num_conn_per_pole_temp, total_time_temp = WiringAlg(np.array(group_indexes[MV_pole_group]),d_EW_between,d_NS_between,"False")
+                    total_distance_temp, OnOff_temp, DistancesBWPoles_temp, num_conn_per_pole_temp, reliability_cost_temp, wire_cost_temp, total_time_temp = WiringAlg(ConnPoles_LV[:,0],probability_LV,Cost_kWh,restoration_time_LV,np.array(group_indexes[MV_pole_group]),wiring_cost_LV,d_EW_between,d_NS_between,"False")
                     #Add group OnOff to total OnOff
                     OnOff_groups.append(OnOff_temp)
                     DistanceBWPoles_groups.append(DistancesBWPoles_temp)
                     total_distance_LV = total_distance_LV + total_distance_temp
+                    reliability_cost_LV.append(reliability_cost_temp)
+                
+                total_reliability_cost_LVMV = sum(reliability_cost_LV) + reliability_cost_MV
                     
                 #Calculate Costs
                 #Connection Total Distance
                 conn_wiring = sum(ConnPoles_LV[:,1])
-                Total_Cost = PenaltiesToCost(conn_wiring, total_distance_LV, total_distance_MV, LV_pole_num, MV_pole_num, ConnPoles_LV)
+                Total_Cost = PenaltiesToCost(total_reliability_cost_LVMV, conn_wiring, total_distance_LV, total_distance_MV, LV_pole_num, MV_pole_num, ConnPoles_LV)
                 #Save Best Solution Based on Cost
                 if Total_Cost < Best_Total_Cost and max(ConnPoles_LV[:,1]) < MaxDistancePoleConn:
                     #Save Best Solutions
@@ -743,6 +827,7 @@ if __name__ == "__main__":
                 print("************************************************************************")
                 
                 #If solution hasn't improved, stop iterations
+                Total_Reliability_Cost.append(total_reliability_cost_LVMV)
                 Total_Cost_List.append(Total_Cost)
                 total_iterations = len(Total_Cost_List)
                 if total_iterations > total_repeats_lookback:
@@ -757,6 +842,8 @@ if __name__ == "__main__":
     Plot_AllPoles_AllWiring(indexes_gen, Best_OnOff_MV, Best_indexes_poles_MV, Best_OnOff_groups, Best_group_indexes, indexes_conn, Best_ConnPoles_LV, Best_indexes_poles_LV)
     
     #Save all solutions to csv's
+    filename = "List_Reliability_Costs_%s_soln.csv" %(str(reformatScaler))
+    np.savetxt(filename,Total_Reliability_Cost, delimiter=",")
     filename = "List_Total_Costs_%s_soln.csv" %(str(reformatScaler))
     np.savetxt(filename,Total_Cost_List, delimiter=",")
     filename = "Best_OnOff_MV_%s_soln.csv" %(str(reformatScaler))
