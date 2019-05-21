@@ -41,7 +41,7 @@ def GenControl(P_PV,L,Batt_discharge, Batt_charge,freespace_discharge,genPeak,Lo
     
     if P_PV > 0:
         if P_PV - L < 0: #Not enough PV to power load, gen running, battery charging
-            if dayhour < 12 and Batt_discharge > L - P_PV: #if in the morning (batteries can discharge to meet load)
+            if freespace_discharge > LoadLeft and Batt_discharge > L-P_PV: #if in the morning (batteries can discharge to meet load)
                 P_gen = 0
                 P_batt = L - P_PV
                 P_dump = 0
@@ -133,7 +133,7 @@ def operation(Batt_Charge_Limit,low_trip_perc,high_trip_perc,lowlightcutoff,Pmax
     #"---------------------------------------------------------------------------------------"
 
     h=0 #"initialize loop variable (timestep counter)"
-    while h < hmax:
+    while h < hmax-16:
  
     	#"============================="
         #" Analyze external conditions "
@@ -172,11 +172,14 @@ def operation(Batt_Charge_Limit,low_trip_perc,high_trip_perc,lowlightcutoff,Pmax
  
         if smart == 1:
             #" estimate load remaining until dawn for nighttimes (set to zero for daytimes) "
-            if dayHour[h] > 17 or dayHour[h] < 7: #"determine the amount of load in kWh remaining from premidnight until dawn"
-                loadLeft[h] = FullYearEnergy.iloc[int(loadcounter-1),0]*0.75/5  #"Modify Nkau for number of households in community of interest" # I added *1.2 to have a little more overshoot
+            #if dayHour[h] > 17 or dayHour[h] < 7: #"determine the amount of load in kWh remaining from premidnight until dawn"
+            #    loadLeft[h] = FullYearEnergy.iloc[int(loadcounter-1),0]*0.75/5  #"Modify Nkau for number of households in community of interest" # I added *1.2 to have a little more overshoot
                 #the FullYearEnergy provides the amount of forecasted nighttime load at each hour through the night (most loadleft at beginning of night, least load left at end of night)
-            else:
-                loadLeft[h]=0 #"daytime load prediction not part of algorithm"
+            #else:
+            #    loadLeft[h]=0 #"daytime load prediction not part of algorithm"
+                
+            #Try considering max LoadLeft for the next 12 hours
+            loadLeft[h] = max(list(FullYearEnergy[h:h+10][0]))*0.75/5*1.5
         else:
             loadLeft[h] = 10000+2*BattkWh #"number much higher than can possibly be stored in battery bank"
             #" forces genset to stay on (not smart) "
@@ -236,10 +239,12 @@ def PlotPowerFlows(P_PV,P_Batt,P_PG,P_dump,SOC,LoadkW,t1,t2,BattkW,Limit_dischar
     axarr[0].plot(time, Limit_discharge[t1:t2],color='black',linewidth=1,linestyle='dashed')
     axarr[0].plot(time, Limit_charge[t1:t2],color='black',linewidth=1,linestyle='dashed')
     axarr[0].plot(time, Zerosss[t1:t2],color='black',linewidth=1,linestyle=':')
+    
     #ax.tick_params(axis='y',labelcolor = 'blue')
     
     axarr[1].plot(time, SOC[t1:t2],color='orange',linewidth=1)
     axarr[1].set_ylabel('SOC %')
+    plt.ylim(-5,105)
     #ax2.tick_params(axis='y',labelcolor = 'orange')
     #plt.legend(['Battery','SOC'])
     f.subplots_adjust(hspace=0)
@@ -281,6 +286,6 @@ if __name__ == "__main__":
     
     Propane, Batt_SOC, LoadkW, P_gen, P_PV, P_batt, P_dump,Limit_charge, Limit_discharge, BattkW = Tech_total(BattkWh_Parametric,PVkW_Parametric)
     
-    t1=25
-    t2=49
+    t1=0
+    t2=25
     PlotPowerFlows(P_PV,P_batt,P_gen,P_dump,Batt_SOC,LoadkW,t1,t2,BattkW,Limit_discharge,Limit_charge)
