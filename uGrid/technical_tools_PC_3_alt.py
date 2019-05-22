@@ -64,6 +64,7 @@ def GenControl(P_PV,L,Batt_discharge, Batt_charge,freespace_discharge,genPeak,Lo
             P_dump = 0
     
     Batt_SOC = Batt_SOC - P_batt
+    
     return P_batt, P_gen, Batt_SOC, P_dump
 #==============================================================================
 
@@ -123,6 +124,8 @@ def operation(Batt_Charge_Limit,low_trip_perc,high_trip_perc,lowlightcutoff,Pmax
             Batt_SOC[0]=BattkWh/4 #" Initialize the Batt Bank to half full"
     else:
     	Batt_SOC[0]=0 #"There is no Batt Bank"
+    
+    Batt_kWh_tot = 0
  
     #"derive factor for latitude tilted PV panel based on I_tilt to DNI ratio from NASA SSE dataset - used for fixed tilt"
     #CALL I_Tilt(Lat, Long, Month:lat_factor)
@@ -187,6 +190,9 @@ def operation(Batt_Charge_Limit,low_trip_perc,high_trip_perc,lowlightcutoff,Pmax
         Batt_discharge, Batt_charge, freespace_discharge = batt_calcs(timestep,BattkWh,T_amb,Batt_SOC[h],Limit_charge,Limit_discharge)
         P_batt[h], P_gen[h], Batt_SOC[h+1], P_dump[h] = GenControl(P_PV[h],LoadkW[h],Batt_discharge, Batt_charge,freespace_discharge,peakload,loadLeft[h],Batt_SOC[h],dayHour[h])
         
+        #Calculate total charge to battery throughout year for lifecycle analysis
+        if P_batt[h] < 0: #P_batt is negative when charging
+            Batt_kWh_tot = Batt_kWh_tot - P_batt[h]
         
         #" calculate fuel usage "
         if P_gen[h] > 0:
@@ -205,7 +211,7 @@ def operation(Batt_Charge_Limit,low_trip_perc,high_trip_perc,lowlightcutoff,Pmax
     #"END OF WRAPPER LOOP"
     #"---------------------------------------------------------------------------------------"
     
-    return Propane, Batt_SOC, LoadkW, P_gen, P_PV, P_batt, P_dump, Limit_charge, Limit_discharge
+    return Propane, Batt_SOC, LoadkW, P_gen, P_PV, P_batt, P_dump, Limit_charge, Limit_discharge, Batt_kWh_tot
 
 ##============================================================================================================================= 
 
@@ -267,11 +273,12 @@ def Tech_total(BattkWh_Parametric,PVkW_Parametric):
     #Input Calculations
     peakload=max(LoadKW_MAK[0])*Tech_Parameters['peakload_buffer'][0] #"maximum power output of the load curve [kW]"
     BattkWh=BattkWh_Parametric*peakload  #"[kWh]"
+    loadkWh = sum(LoadKW_MAK[0])
     PVkW=PVkW_Parametric*peakload  #"[kW]"
     
-    Propane, Batt_SOC, LoadkW, P_gen, P_PV, P_batt, P_dump,Limit_charge, Limit_discharge = operation(Tech_Parameters['Batt_Charge_Limit'][0],Tech_Parameters['low_trip_perc'][0],Tech_Parameters['high_trip_perc'][0],Tech_Parameters['lowlightcutoff'][0],Tech_Parameters['Pmax_Tco'][0], Tech_Parameters['NOCT'][0], Tech_Parameters['smart'][0], PVkW, BattkWh, peakload, LoadKW_MAK, FullYearEnergy, MSU_TMY,Solar_Parameters,Tech_Parameters['trans_losses'][0]) 
+    Propane, Batt_SOC, LoadkW, P_gen, P_PV, P_batt, P_dump,Limit_charge, Limit_discharge, Batt_kWh_tot = operation(Tech_Parameters['Batt_Charge_Limit'][0],Tech_Parameters['low_trip_perc'][0],Tech_Parameters['high_trip_perc'][0],Tech_Parameters['lowlightcutoff'][0],Tech_Parameters['Pmax_Tco'][0], Tech_Parameters['NOCT'][0], Tech_Parameters['smart'][0], PVkW, BattkWh, peakload, LoadKW_MAK, FullYearEnergy, MSU_TMY,Solar_Parameters,Tech_Parameters['trans_losses'][0]) 
     
-    return Propane, Batt_SOC, LoadkW, P_gen, P_PV, P_batt, P_dump, Limit_charge, Limit_discharge,BattkWh
+    return Propane, Batt_SOC, LoadkW, P_gen, P_PV, P_batt, P_dump, Limit_charge, Limit_discharge,BattkWh,Batt_kWh_tot,loadkWh,peakload
 ##=============================================================================================================
 
 
@@ -284,7 +291,7 @@ if __name__ == "__main__":
     BattkWh_Parametric=6
     PVkW_Parametric=2
     
-    Propane, Batt_SOC, LoadkW, P_gen, P_PV, P_batt, P_dump,Limit_charge, Limit_discharge, BattkW = Tech_total(BattkWh_Parametric,PVkW_Parametric)
+    Propane, Batt_SOC, LoadkW, P_gen, P_PV, P_batt, P_dump,Limit_charge, Limit_discharge, BattkW, Batt_kWh_tot,loadkWh,peakload = Tech_total(BattkWh_Parametric,PVkW_Parametric)
     
     t1=0
     t2=25

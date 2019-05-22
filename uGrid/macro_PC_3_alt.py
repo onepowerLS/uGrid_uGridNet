@@ -9,7 +9,7 @@ from __future__ import division
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from technical_tools_PC_3 import Tech_total
+from technical_tools_PC_3_alt import Tech_total
 from economic_tools_PC_3 import Econ_total
 import time
 
@@ -75,7 +75,7 @@ if __name__ == "__main__":
     hmax = len(LoadKW_MAK)
     gB_Cost = np.zeros(hmax)
     data_plot_variables = np.zeros((hmax,13))
-    gB_plot_variables = pd.DataFrame(data = data_plot_variables ,columns=['Batt_SOC', 'Charge', 'LoadkW', 'genLoad', 'Batt_Power_to_Load', 'Batt_Power_to_Load_neg', 'PV_Power', 'PV_Batt_Change_Power', 'dumpload', 'Batt_frac', 'Gen_Batt_Charge_Power', 'Genset_fuel', 'Fuel_kW'])
+    #gB_plot_variables = pd.DataFrame(data = data_plot_variables,columns=['Batt_SOC', 'LoadkW', 'P_gen', 'P_PV', 'P_batt', 'P_dump'])
     data_optimization_variables = np.zeros((maxGen-1, 4))
     gB_optimization_output_var = np.zeros((4,maxGen-1))
     gB_optimization_output =pd.DataFrame(data = data_optimization_variables, columns =['BattkW','PVkW','Propane','Tariff'])            
@@ -112,7 +112,7 @@ if __name__ == "__main__":
         match = 0
         for m in range(numInd):            
             #calculate technical parameters
-            Propane_ec[m,iteration], Gt_panel, Batt_kWh_tot_ec[m,iteration], Batt_SOC, Charge, State, LoadkW, genLoad, Inv_Batt_Dis_P, PV_Power, PV_Batt_Change_Power, dumpload, Batt_frac, Gen_Batt_Charge_Power, Genset_fuel, Fuel_kW, peakload, loadkWh = Tech_total(Parameters[0,m,iteration],Parameters[1,m,iteration])
+            Propane_ec[m,iteration], Batt_SOC, LoadkW, P_gen, P_PV, P_batt, P_dump,Limit_charge, Limit_discharge, BattkW, Batt_kWh_tot_ec[m,iteration],loadkWh,peakload = Tech_total(Parameters[0,m,iteration],Parameters[1,m,iteration])
             #don't need to save Gt_panel, final, Batt_SOC, and Charge these are used to validate program
                
             LoanPrincipal, year, Cost, Revenue, CashonHand, Balance, M, O, tariff[m,iteration], Batt_life_yrs[m,iteration] = Econ_total(Propane_ec[m,iteration],Parameters[1,m,iteration]*peakload,Parameters[0,m,iteration]*peakload,Batt_kWh_tot_ec[m,iteration],peakload,loadkWh)
@@ -135,8 +135,8 @@ if __name__ == "__main__":
                 gB_propane = np.copy(Propane_ec[m,iteration])
                 gB_parameters = np.copy(Parameters[:,m,iteration])
                 #Saving plotting variables
-                data_plot_variables = np.transpose([Batt_SOC, Charge, LoadkW, genLoad, -Inv_Batt_Dis_P, Inv_Batt_Dis_P, PV_Power, PV_Batt_Change_Power, dumpload, Batt_frac, Gen_Batt_Charge_Power, Genset_fuel, Fuel_kW])
-                gB_plot_variables = pd.DataFrame(data = data_plot_variables,columns=['Batt_SOC', 'Charge', 'LoadkW', 'genLoad', 'Batt_Power_to_Load', 'Batt_Power_to_Load_neg', 'PV_Power', 'PV_Batt_Change_Power', 'dumpload', 'Batt_frac', 'Gen_Batt_Charge_Power', 'Genset_fuel', 'Fuel_kW'])
+                #data_plot_variables = np.transpose([Batt_SOC, LoadkW, P_gen, P_PV, P_batt, P_dump])
+                #gB_plot_variables = pd.DataFrame(data = data_plot_variables,columns=['Batt_SOC', 'LoadkW', 'P_gen', 'P_PV', 'P_batt', 'P_dump'])
                 gB_Cost = np.copy(Cost)
             #Find personal best (done at the end of each iteration)
             for pB_iter in range(iteration):
@@ -220,7 +220,7 @@ if __name__ == "__main__":
     writer = pd.ExcelWriter(filename_xlsx, engine='xlsxwriter')
 
     # Convert the dataframe to an XlsxWriter Excel object.
-    gB_plot_variables.to_excel(writer, sheet_name='Solution Output')
+    #gB_plot_variables.to_excel(writer, sheet_name='Solution Output')
     gB_optimization_output.to_excel(writer, sheet_name='Optimization Output')
     gB_total_var.to_excel(writer, sheet_name='Other Solution Output')
     gB_recordRecord.to_excel(writer, sheet_name='Record History')
@@ -228,13 +228,13 @@ if __name__ == "__main__":
     writer.save()
 
     #Plot power to the load and the load curve
-    gB_plot_variables.plot(y = ['LoadkW', 'genLoad', 'Batt_Power_to_Load', 'PV_Power','dumpload'], kind='line')
-    filename_Plot_LoadDispatch = "Power_to_Load_"+PSO_Parameters['output_name'][0]+".pdf"
-    plt.savefig(filename_Plot_LoadDispatch)
+    #gB_plot_variables.plot(y = ['LoadkW', 'genLoad', 'Batt_Power_to_Load', 'PV_Power','dumpload'], kind='line')
+    #filename_Plot_LoadDispatch = "Power_to_Load_"+PSO_Parameters['output_name'][0]+".pdf"
+    #plt.savefig(filename_Plot_LoadDispatch)
     #Plot power to battery and battery SOC
-    gB_plot_variables.plot(y = ['Batt_SOC', 'Charge', 'PV_Batt_Change_Power','Batt_Power_to_Load_neg', 'Batt_frac', 'Gen_Batt_Charge_Power'], kind='line')
-    filename_Plot_BatteryDispatch = "Battery_to_Load_"+PSO_Parameters['output_name'][0]+".pdf"
-    plt.savefig(filename_Plot_BatteryDispatch)
+    #gB_plot_variables.plot(y = ['Batt_SOC', 'Charge', 'PV_Batt_Change_Power','Batt_Power_to_Load_neg', 'Batt_frac', 'Gen_Batt_Charge_Power'], kind='line')
+    #filename_Plot_BatteryDispatch = "Battery_to_Load_"+PSO_Parameters['output_name'][0]+".pdf"
+    #plt.savefig(filename_Plot_BatteryDispatch)
 
 
     
