@@ -41,7 +41,7 @@ def GenControl(P_PV,L,Batt_discharge, Batt_charge,freespace_discharge,genPeak,Lo
     
     if P_PV > 0:
         if P_PV - L < 0: #Not enough PV to power load, gen running, battery charging
-            if freespace_discharge > LoadLeft and Batt_discharge > L-P_PV: #if in the morning (batteries can discharge to meet load)
+            if freespace_discharge > LoadLeft and Batt_discharge > L-P_PV:# and dayhour < 12: #if in the morning (batteries can discharge to meet load)
                 P_gen = 0
                 P_batt = L - P_PV
                 P_dump = 0
@@ -182,7 +182,7 @@ def operation(Batt_Charge_Limit,low_trip_perc,high_trip_perc,lowlightcutoff,Pmax
             #    loadLeft[h]=0 #"daytime load prediction not part of algorithm"
                 
             #Try considering max LoadLeft for the next 12 hours
-            loadLeft[h] = max(list(FullYearEnergy[h:h+10][0]))*0.75/5*1.5
+            loadLeft[h] = max(list(FullYearEnergy[h:h+6][0]))*0.75/5*9
         else:
             loadLeft[h] = 10000+2*BattkWh #"number much higher than can possibly be stored in battery bank"
             #" forces genset to stay on (not smart) "
@@ -221,7 +221,7 @@ def PlotPowerFlows(P_PV,P_Batt,P_PG,P_dump,SOC,LoadkW,t1,t2,BattkW,Limit_dischar
     time = list(range(t1,t2))
     fig, ax = plt.subplots()
     ax.set_xlabel('time (h)')
-    ax.set_ylabel('P (kWh)')
+    ax.set_ylabel('P (kW)')
     ax.plot(time, P_PV[t1:t2],color='green',linewidth=1)
     ax.plot(time, P_Batt[t1:t2],color='blue',linewidth=1)
     ax.plot(time, P_PG[t1:t2],color='red',linewidth=1)
@@ -229,7 +229,7 @@ def PlotPowerFlows(P_PV,P_Batt,P_PG,P_dump,SOC,LoadkW,t1,t2,BattkW,Limit_dischar
     ax.plot(time, LoadkW[t1:t2],color='black',linewidth=1)
     ax.legend(['PV','Battery','PG','Dump','Load'])
     plt.xlim(t1,t2-1)
-    plotname = "PowerFlows.png"
+    plotname = "PowerFlows_JULY.png"
     plt.savefig(plotname, dpi=600)
     plt.show()
     
@@ -240,7 +240,7 @@ def PlotPowerFlows(P_PV,P_Batt,P_PG,P_dump,SOC,LoadkW,t1,t2,BattkW,Limit_dischar
     
     f, axarr = plt.subplots(2,sharex=True)
     axarr[0].set_xlabel('time (h)')
-    axarr[0].set_ylabel('P (kWh)')
+    axarr[0].set_ylabel('P (kW)')
     axarr[0].plot(time, P_Batt[t1:t2],color='blue',linewidth=1)
     axarr[0].plot(time, Limit_discharge[t1:t2],color='black',linewidth=1,linestyle='dashed')
     axarr[0].plot(time, Limit_charge[t1:t2],color='black',linewidth=1,linestyle='dashed')
@@ -255,10 +255,24 @@ def PlotPowerFlows(P_PV,P_Batt,P_PG,P_dump,SOC,LoadkW,t1,t2,BattkW,Limit_dischar
     #plt.legend(['Battery','SOC'])
     f.subplots_adjust(hspace=0)
     plt.xlim(t1,t2-1)
-    plotname = "Battery_SOC.png"
+    plotname = "Battery_SOC_JULY.png"
     plt.savefig(plotname, dpi=600)
     plt.show()
 ##=============================================================================
+    
+#Plot Load =============================================================
+def PlotLoad(LoadkW,t1,t2):
+    
+    time = list(range(t1,t2))
+    fig, ax = plt.subplots()
+    ax.set_xlabel('time (h)')
+    ax.set_ylabel('P (kWh)')
+    ax.plot(time, LoadkW[t1:t2],color='black',linewidth=1)
+    plt.xlim(t1,t2-1)
+    plotname = "LoadFlow_JAN.png"
+    plt.savefig(plotname, dpi=600)
+    plt.show()
+##=============================================================================    
 
 ## Tech_total function =========================================================================================================
 def Tech_total(BattkWh_Parametric,PVkW_Parametric):
@@ -288,11 +302,11 @@ def Tech_total(BattkWh_Parametric,PVkW_Parametric):
 #" -----------------------------------------------------------------------------------------------------------"
 if __name__ == "__main__":
 
-    BattkWh_Parametric=6
-    PVkW_Parametric=2
+    BattkWh_Parametric=5.5
+    PVkW_Parametric=2.7
     
     Propane, Batt_SOC, LoadkW, P_gen, P_PV, P_batt, P_dump,Limit_charge, Limit_discharge, BattkW, Batt_kWh_tot,loadkWh,peakload = Tech_total(BattkWh_Parametric,PVkW_Parametric)
     
-    t1=0
-    t2=25
+    t1=int(24*30*1)
+    t2=t1+25
     PlotPowerFlows(P_PV,P_batt,P_gen,P_dump,Batt_SOC,LoadkW,t1,t2,BattkW,Limit_discharge,Limit_charge)

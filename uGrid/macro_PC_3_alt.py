@@ -74,8 +74,8 @@ if __name__ == "__main__":
     LoadKW_MAK = pd.read_excel('LoadKW_MAK.xlsx',index_col=None, header=None)
     hmax = len(LoadKW_MAK)
     gB_Cost = np.zeros(hmax)
-    data_plot_variables = np.zeros((hmax,13))
-    #gB_plot_variables = pd.DataFrame(data = data_plot_variables,columns=['Batt_SOC', 'LoadkW', 'P_gen', 'P_PV', 'P_batt', 'P_dump'])
+    data_plot_variables = np.zeros((hmax,6))
+    gB_plot_variables = pd.DataFrame(data = data_plot_variables,columns=['Batt_SOC', 'LoadkW', 'P_gen', 'P_PV', 'P_batt', 'P_dump'])
     data_optimization_variables = np.zeros((maxGen-1, 4))
     gB_optimization_output_var = np.zeros((4,maxGen-1))
     gB_optimization_output =pd.DataFrame(data = data_optimization_variables, columns =['BattkW','PVkW','Propane','Tariff'])            
@@ -135,8 +135,9 @@ if __name__ == "__main__":
                 gB_propane = np.copy(Propane_ec[m,iteration])
                 gB_parameters = np.copy(Parameters[:,m,iteration])
                 #Saving plotting variables
-                #data_plot_variables = np.transpose([Batt_SOC, LoadkW, P_gen, P_PV, P_batt, P_dump])
-                #gB_plot_variables = pd.DataFrame(data = data_plot_variables,columns=['Batt_SOC', 'LoadkW', 'P_gen', 'P_PV', 'P_batt', 'P_dump'])
+                data_plot_variables = np.column_stack((Batt_SOC[0:8761], LoadkW, P_gen, P_PV, P_batt, P_dump))
+                #data_plot_variables =[Batt_SOC, LoadkW, P_gen, P_PV, P_batt, P_dump]
+                gB_plot_variables = pd.DataFrame(data_plot_variables,columns=['Batt_SOC', 'LoadkW', 'P_gen', 'P_PV', 'P_batt', 'P_dump'])
                 gB_Cost = np.copy(Cost)
             #Find personal best (done at the end of each iteration)
             for pB_iter in range(iteration):
@@ -220,7 +221,7 @@ if __name__ == "__main__":
     writer = pd.ExcelWriter(filename_xlsx, engine='xlsxwriter')
 
     # Convert the dataframe to an XlsxWriter Excel object.
-    #gB_plot_variables.to_excel(writer, sheet_name='Solution Output')
+    gB_plot_variables.to_excel(writer, sheet_name='Solution Output')
     gB_optimization_output.to_excel(writer, sheet_name='Optimization Output')
     gB_total_var.to_excel(writer, sheet_name='Other Solution Output')
     gB_recordRecord.to_excel(writer, sheet_name='Record History')
