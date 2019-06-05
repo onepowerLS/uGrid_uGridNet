@@ -1,19 +1,23 @@
-# -*- coding: utf-8 -*-
 """
-Created on Mon Dec  3 02:07:35 2018
+Solar Calcs
 
-@author: Phy
+This contains all the solar functions which are called by the macro file
+for the uGrid tool. The solar functions within the solar calculations python 
+file are all based on how the solar generation calculations are done in Homer. 
+
+@author: Phylicia Cicilio
 """
 
 from __future__ import division
 import numpy as np
-import pandas as pd
 import math as m
 
 ## Solar Calcs from NREL SOLPOS===============================================================
 #
 def NRELTheta(year,hour,longitude,latitude,timezone):    
-# inputs: day number, hour
+# This function calculates the solar hour angle, declination, and day number for the specified 
+# hour in the year. 
+    # inputs: day number, hour
 #/*============================================================================
 #*    Local Void function geometry
 #*
@@ -192,6 +196,7 @@ def NRELTheta(year,hour,longitude,latitude,timezone):
 # *            Academic Press, NY., page 15
 # *----------------------------------------------------------------------------*/
 def SolarZenith(declin,latitude,hrang):
+# This function calculates the solar zenith.
 # static void zen_no_ref ( struct posdata *pdat, struct trigdata *tdat )
 # {
 #   float cz;          /* cosine of the solar zenith angle */
@@ -233,6 +238,7 @@ def SolarZenith(declin,latitude,hrang):
 
 ## Theta =====================================================================
 def GetTheta(declin,latitude,hrang,slope,azimuth):
+# This function calculates the solar theta angle.
     sd = m.sin(declin)
     cd = m.cos(declin)
 #    d2     = 2.0 * dayang
@@ -269,6 +275,7 @@ def GetTheta(declin,latitude,hrang,slope,azimuth):
  
 ## Calc Global Radiation Incident on PV Array ================================
 def GetGT(G,slope, pg, theta, zenetr, declin, latitude,daynum):
+# This function calculates the global radiation incident on the solar panels.
     if G != 0:
         G = G/1000
         Gsc = 1.367 #the solar constant [kW/m2]
@@ -349,6 +356,8 @@ def SolarTotal(MSU_TMY,year,th_hour,longitude,latitude,timezone,slope,azimuth,pg
 
 
 if __name__ == "__main__":
+# This python file can be run as standalone. In order to run as a standalone 
+# all the inputs for the SolarTotal function need to be specified. 
     #Location Inputs
     latitude = -33
     longitude = 18

@@ -1,9 +1,10 @@
 """
-This file contains all the required functions to run technical model standalone, to compare to the EES technical file. 
+Tech Tools
 
-Created on Tue Jun 21 10:13:16 2016
+This contains all the technical functions which are called by the macro file
+for the uGrid tool. 
 
-@author: phylicia Cicilio
+@author: Phylicia Cicilio
 """
 
 from __future__ import division
@@ -15,6 +16,12 @@ import matplotlib.pyplot as plt
 
 ## Battery Calculations ========================================================
 def batt_calcs(timestep,BattkWh,T_amb,Batt_SOC_in,Limit_charge,Limit_discharge):
+# This performs the battery performance calculations based on temperature and
+# the limits of the battery. 
+# The output is the available charge and discharge amounts and the total
+# freespace in the battery. All these values are positive, this will be adjusted
+# for power flow negative and positive flow from the battery in the GenControl
+# function. 
     
     #timestep = 1
     Self_discharge = timestep * 3600 * BattkWh * 3.41004573E-09 * np.exp(0.0693146968 * T_amb)   #"Effect of temperature on self discharge of the battery bank from 5% per month at 25C and doubling every 10C"
@@ -23,7 +30,7 @@ def batt_calcs(timestep,BattkWh,T_amb,Batt_SOC_in,Limit_charge,Limit_discharge):
     Batt_cap = BattkWh * SOC_frac
     high_trip = 0.95 * Batt_cap
     freespace_charge = high_trip - Batt_SOC_in
-    if freespace_charge < 0:
+    if freespace_charge < 0: #ensure not reporting negative amount of available space
         freespace_charge == 0
     low_trip = 0.05 * Batt_cap
     freespace_discharge = Batt_SOC_in - low_trip
@@ -32,12 +39,17 @@ def batt_calcs(timestep,BattkWh,T_amb,Batt_SOC_in,Limit_charge,Limit_discharge):
     Batt_discharge = min(Limit_discharge,freespace_discharge)
     Batt_charge = min(Limit_charge,freespace_charge)
     
-    return Batt_discharge, Batt_charge,freespace_discharge #these are both positive
+    return Batt_discharge, Batt_charge,freespace_discharge #These values are all positive
 
 ##=============================================================================
     
 ## Generation Control =========================================================
 def GenControl(P_PV,L,Batt_discharge, Batt_charge,freespace_discharge,genPeak,LoadLeft,Batt_SOC,dayhour):
+# This performs the generation and load balance control. The algorithm performed
+# here is shown in the uGrid User Guide.
+# The output is the power flows from the battery and propance generator, the 
+# state of charge of the battery, and the amount of power dumped due to excess
+# solar PV generation. 
     
     if P_PV > 0:
         if P_PV - L < 0: #Not enough PV to power load, gen running, battery charging
@@ -63,7 +75,7 @@ def GenControl(P_PV,L,Batt_discharge, Batt_charge,freespace_discharge,genPeak,Lo
             P_batt = -(P_gen-L)
             P_dump = 0
     
-    Batt_SOC = Batt_SOC - P_batt
+    Batt_SOC = Batt_SOC - P_batt #update state of charge of the battery
     
     return P_batt, P_gen, Batt_SOC, P_dump
 #==============================================================================
@@ -72,7 +84,7 @@ def GenControl(P_PV,L,Batt_discharge, Batt_charge,freespace_discharge,genPeak,Lo
 ## fuel_calcs FUNCTION =====================================================================================================
 #@jit(nopython=True) # Set "nopython" mode for best performance
 def fuel_calcs(genload,peakload,timestep):
-    #"generator fuel consumption calculations based on efficiency as a function of power output fraction of nameplate rating"
+#"generator fuel consumption calculations based on efficiency as a function of power output fraction of nameplate rating"
    
     partload = genload / peakload
     Eta_genset = -0.00430876206 + 0.372448046*partload - 0.174532718*partload**2   #"Derived from Onan 25KY model"
@@ -91,7 +103,10 @@ def fuel_calcs(genload,peakload,timestep):
 
 
 ## operation FUNCTION =====================================================================================================
-def operation(Batt_Charge_Limit,low_trip_perc,high_trip_perc,lowlightcutoff,Pmax_Tco, NOCT, smart, PVkW, BattkWh, peakload, LoadKW_MAK, FullYearEnergy, MSU_TMY,Solar_Parameters,trans_losses):
+def operation(Batt_Charge_Limit, smart, PVkW, BattkWh, peakload, LoadKW_MAK, FullYearEnergy, MSU_TMY,Solar_Parameters,trans_losses):
+# This function cycles through the year of data provided to determine the power flows and propane consumption for each timestep in 
+# the year by calling all of the previous functions and the solar python file.    
+    
     from solar_calcs_PC_3 import SolarTotal
     
     # This code can and should be cleaned up *****
@@ -116,25 +131,18 @@ def operation(Batt_Charge_Limit,low_trip_perc,high_trip_perc,lowlightcutoff,Pmax
   
     #"Initialize variables"
     Propane=0
-    Limit_discharge = BattkWh/Batt_Charge_Limit
-    Limit_charge = BattkWh/Batt_Charge_Limit
+    Limit_discharge = BattkWh*Batt_Charge_Limit
+    Limit_charge = BattkWh*Batt_Charge_Limit
     
     #" If battery bank is included in generation equipment "
     if BattkWh > 0: 
-            Batt_SOC[0]=BattkWh/4 #" Initialize the Batt Bank to half full"
+            Batt_SOC[0]=BattkWh/4 #" Initialize the Batt Bank to quarter full"
     else:
     	Batt_SOC[0]=0 #"There is no Batt Bank"
     
     Batt_kWh_tot = 0
  
-    #"derive factor for latitude tilted PV panel based on I_tilt to DNI ratio from NASA SSE dataset - used for fixed tilt"
-    #CALL I_Tilt(Lat, Long, Month:lat_factor)
-    #lat_factor=1
- 
-    #"---------------------------------------------------------------------------------------"
-    #"WRAPPER LOOP"
-    #"---------------------------------------------------------------------------------------"
-
+    #Loop through each timestep in the year
     h=0 #"initialize loop variable (timestep counter)"
     while h < hmax-16:
  
@@ -208,7 +216,7 @@ def operation(Batt_Charge_Limit,low_trip_perc,high_trip_perc,lowlightcutoff,Pmax
 
  
     #"---------------------------------------------------------------------------------------"
-    #"END OF WRAPPER LOOP"
+    #"END OF LOOP"
     #"---------------------------------------------------------------------------------------"
     
     return Propane, Batt_SOC, LoadkW, P_gen, P_PV, P_batt, P_dump, Limit_charge, Limit_discharge, Batt_kWh_tot
@@ -217,6 +225,9 @@ def operation(Batt_Charge_Limit,low_trip_perc,high_trip_perc,lowlightcutoff,Pmax
 
 #Plot Power Flows =============================================================
 def PlotPowerFlows(P_PV,P_Batt,P_PG,P_dump,SOC,LoadkW,t1,t2,BattkW,Limit_discharge,Limit_charge):
+# This function creates plots of the power flows and battery state of charge for any specified 
+# section of time throughout the year. The time period is specified by the starting time t1,
+# and the ending time t2.
     
     time = list(range(t1,t2))
     fig, ax = plt.subplots()
@@ -262,6 +273,8 @@ def PlotPowerFlows(P_PV,P_Batt,P_PG,P_dump,SOC,LoadkW,t1,t2,BattkW,Limit_dischar
     
 #Plot Load =============================================================
 def PlotLoad(LoadkW,t1,t2):
+# This function plots the load demand from the specified start time, t1, 
+# to the end time, t2.    
     
     time = list(range(t1,t2))
     fig, ax = plt.subplots()
@@ -276,7 +289,8 @@ def PlotLoad(LoadkW,t1,t2):
 
 ## Tech_total function =========================================================================================================
 def Tech_total(BattkWh_Parametric,PVkW_Parametric):
-
+# This function calls the previous functions, excluding the plotting function, to solve for the power flows for the year.
+    
     #Load excel files containing LoadKW_MAK, FullYearEnergy, final
     LoadKW_MAK = pd.read_excel('LoadKW_MAK.xlsx',index_col=None, header=None)
     FullYearEnergy = pd.read_excel('FullYearEnergy.xlsx',index_col=None, header=None)
@@ -290,7 +304,7 @@ def Tech_total(BattkWh_Parametric,PVkW_Parametric):
     loadkWh = sum(LoadKW_MAK[0])
     PVkW=PVkW_Parametric*peakload  #"[kW]"
     
-    Propane, Batt_SOC, LoadkW, P_gen, P_PV, P_batt, P_dump,Limit_charge, Limit_discharge, Batt_kWh_tot = operation(Tech_Parameters['Batt_Charge_Limit'][0],Tech_Parameters['low_trip_perc'][0],Tech_Parameters['high_trip_perc'][0],Tech_Parameters['lowlightcutoff'][0],Tech_Parameters['Pmax_Tco'][0], Tech_Parameters['NOCT'][0], Tech_Parameters['smart'][0], PVkW, BattkWh, peakload, LoadKW_MAK, FullYearEnergy, MSU_TMY,Solar_Parameters,Tech_Parameters['trans_losses'][0]) 
+    Propane, Batt_SOC, LoadkW, P_gen, P_PV, P_batt, P_dump,Limit_charge, Limit_discharge, Batt_kWh_tot = operation(Tech_Parameters['Batt_Charge_Limit'][0], Tech_Parameters['smart'][0], PVkW, BattkWh, peakload, LoadKW_MAK, FullYearEnergy, MSU_TMY,Solar_Parameters,Tech_Parameters['trans_losses'][0]) 
     
     return Propane, Batt_SOC, LoadkW, P_gen, P_PV, P_batt, P_dump, Limit_charge, Limit_discharge,BattkWh,Batt_kWh_tot,loadkWh,peakload
 ##=============================================================================================================
@@ -301,6 +315,8 @@ def Tech_total(BattkWh_Parametric,PVkW_Parametric):
 #"SIMULTANEOUSLY SOLVED EQUATIONS" as a standalone program
 #" -----------------------------------------------------------------------------------------------------------"
 if __name__ == "__main__":
+# This python file can be run as standalone. In order to run as a standalone the BattkWh_Parametric and 
+# PVkW_Parametric need to be specified. This is also where the plotting functions can be called, and t1 and t2 are specified. 
 
     BattkWh_Parametric=5.5
     PVkW_Parametric=2.7

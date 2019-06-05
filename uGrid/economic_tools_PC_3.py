@@ -1,9 +1,10 @@
 """
-This file contains all the required functions to run economic model standalone, to compare to the EES economic file. 
+Economic Tools
 
-Created on Tue Jun 21 10:13:16 2016
+This contains all the economic functions which are called by the macro file
+for the uGrid tool. 
 
-@author: phylicia Cicilio
+@author: Phylicia Cicilio
 """
 
 from __future__ import division
@@ -13,7 +14,8 @@ import pandas as pd
 
 ## MCASHFLOW FUNCTION =====================================================================================================
 def mcashflow(tariff_hillclimb_multiplier,lifetime,f_pv,a_pv,f,a,Batt_life_yrs, equity_debt_ratio, term, loadkWh, interest_rate, loanfactor, PVkW, BattKWh, LEC, C1_pv, C1_LPG, Cost_bank, Cost_Propane_yr):
-#Removed all thermal system variables and calculations 
+#This function calculates the tariff based on the inputted equipment sizes and 
+# minigrid costs and financial parameters.
     
     #Initialize output variables
     lifetime = int(lifetime)
@@ -81,7 +83,9 @@ def mcashflow(tariff_hillclimb_multiplier,lifetime,f_pv,a_pv,f,a,Batt_life_yrs, 
  
 ## Econ_total function ===========================================================================
 def Econ_total(propane, PVkW,BattKWh,Batt_kWh_tot,peakload,loadkWh):    
-
+# This function calls in all the necessary economic inputs from the uGrid_Input.xlsx 
+# and calls the mcashflow function to calculate the tariff. 
+    
     #Load all Econ input
     Econ_Parameters = pd.read_excel('uGrid_Input.xlsx', sheet_name = 'Econ')
 
@@ -140,6 +144,8 @@ def Econ_total(propane, PVkW,BattKWh,Batt_kWh_tot,peakload,loadkWh):
     
 #Run economic code standalone
 if __name__ == "__main__":
+# This python file can be run as standalone. In order to run as a standalone 
+# all the inputs for the Econ_Total function need to be specified. 
 
     #These are for running as standalone
     propane=10000

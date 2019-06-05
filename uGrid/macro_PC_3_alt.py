@@ -2,23 +2,38 @@
 """
 uGrid "Macro" Code
 
-@author: Phy
+Description: This runs the uGrid tool to provide optimization of equipment sizes by minimizing
+the levelized cost of electricity, also referred to as the tariff. The optimization is a
+particle swarm optimization adjusted for constraints specific to this optimization problem. 
+
+Input: Four spreadsheets need to be in the file folder: main inputs (uGrid_Input.xlsx), 
+load data (LoadKW_MAK.xlsx), load forecasting data (FullYearEnergy.xlsx), and 
+weather data (MSU_TMY.xlsx). See the uGrid User Guide for more information.
+
+Output: Results from each generation will be output to the command line. The 
+generation results and overall results will be output to an excel spreadsheet 
+with the name specified in the main inputs spreadsheet.
+
+How to Run: Update the data in the four input spreadsheets. Run this file.  
+
+@author: Phylicia Cicilio
 """
 
 from __future__ import division
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 from technical_tools_PC_3_alt import Tech_total
 from economic_tools_PC_3 import Econ_total
 import time
 
 
 if __name__ == "__main__":
-    close_fds=False
+    close_fds=False #subprocess management
 
+    #Recording time to complete
     start_time = time.time()
 
+    #Call in Inputs
     #PSO Parameters
     PSO_Parameters = pd.read_excel('uGrid_Input.xlsx', sheet_name = 'PSO')
     maxGen = PSO_Parameters['maxGen'][0]
@@ -44,8 +59,7 @@ if __name__ == "__main__":
     
     #Initialize matrixes and parameters
     Parameters_test = np.zeros(2)
-    Parameters_dev = np.zeros(2)
-    
+    Parameters_dev = np.zeros(2)   
     Parameters = np.zeros((2,numInd,maxGen)) #this is the result for each parameter, for each month, for each individual
     Propane_ec = np.zeros((numInd,maxGen))
     Batt_kWh_tot_ec = np.zeros((numInd,maxGen))
@@ -150,6 +164,7 @@ if __name__ == "__main__":
 
             #Calculate Next Gen
             V_gens[:,m,iteration+1] = W*V_gens[:,m,iteration] + C1*np.random.uniform(0,1)*(pB_parameters[:,m] - Parameters[:,m,iteration]) + C2*np.random.uniform(0,1)*(gB_parameters- Parameters[:,m,iteration])
+            #Check that velocity is within limits
             for s in range(2):
                 if V_gens[s,m,iteration+1] > VelMax[s]:
                     V_gens[s,m,iteration+1] = np.copy(VelMax[s])
@@ -158,7 +173,7 @@ if __name__ == "__main__":
             # new microgrid parameters for the next generation
             # value from previous position plus some movement based on velocity & PSO parameters
             Parameters[:,m,iteration+1] = Parameters[:,m,iteration] + CF*V_gens[:,m,iteration+1]
-            #// ceilings based on limits for specific microgrid parameters
+            # ceilings based on limits for specific microgrid parameters
             for q in range(2):
                 if Parameters[q,m,iteration+1] > upper_bounds[q]:
                     Parameters[q,m,iteration+1] = np.copy(upper_bounds[q])
@@ -168,10 +183,11 @@ if __name__ == "__main__":
                     Parameters[q,m,iteration+1] = 0
            
         #Stopping Criteria (once all individuals are calculated)
+        #Testing is the equipment size parameters match
         if iteration < 30:
             testLim = np.copy(lowTestLim)
         else:
-            testLim = np.copy(highTestLim)
+            testLim = np.copy(highTestLim) #more restrictive stopping criteria can be placed for later generations
         match = 0
         for ind in range(numInd):
             Parameters_test = (Parameters[:,ind,iteration] - gB_parameters)/(gB_parameters + 0.0001)
@@ -193,12 +209,12 @@ if __name__ == "__main__":
             if t_diff < stopLimit:
                 print("Stopping due to minimal change between global bests")
     
-    
         #Print generation results
         print("Global Best Tariff "+ str(gB_tariff))
         print("Best Tariff in Generation " + str(gB_change_tariff[iteration]))
         iteration += 1
 
+    #Calculate total run time
     end_time = time.time()
     total_time = end_time - start_time
     print("Time to complete simulation is " + str(total_time))
