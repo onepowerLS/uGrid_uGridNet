@@ -34,7 +34,13 @@ def GPStoDistance(Lat1,Lat2,Long1,Long2):
 
 #==============================================================================
 # Exclusion Mapper using 2nd array instead of increasing list of indexes
-def ExclusionMapper1(ExclusionMap_array,reformatScaler,exclusionBuffer,d_EW_between,d_NS_between,width_new,height_new):
+def ExclusionMapper(ExclusionMap_array,reformatScaler,exclusionBuffer,d_EW_between,d_NS_between,width_new,height_new):
+# This function takes the exclusion array, collected from the pdf image, and 
+# recasts the exclusion zones into a new array accounting the for the exclusion 
+# buffer and reformat scaler. The reformat scaler is used to reduce the 
+# dimensions of the exclusion array so the program can run faster. 
+# Additionally, it can make sense to reduce the resolution if the original pixel 
+# resolution is less than a foot, such a high resolution is unnecessary. 
     print("in exclusion mapper")
     #Extend the exclusions to include the buffer zone
     bufferArrayWidth_EW = m.ceil(exclusionBuffer/d_EW_between) #reformatted indexes array width 
@@ -99,6 +105,8 @@ def ExclusionMapper1(ExclusionMap_array,reformatScaler,exclusionBuffer,d_EW_betw
 #=============================================================================
 # Get Distance between array indexes
 def DistanceBWindexes(indexesA,indexesB,d_EW_between,d_NS_between):
+# This function calculates the distances between array indexes. This works for 
+# any array, just the distance between indexes (or “pixels”) needs to be inputted.
     if len(indexesA) == 2:
         #This is a single index submission
         A_sqr = m.pow(((indexesA[0]-indexesB[0])*d_EW_between),2)
@@ -122,6 +130,10 @@ def DistanceBWindexes(indexesA,indexesB,d_EW_between,d_NS_between):
 #==============================================================================
 # Clustering of Connections for Initial Solution Pole Placement
 def Clustering(indexes_conn,num_clusters):
+# This function clusters the house location to obtain initial placements of 
+# the LV (220V) poles. The number of clusters to create is set by the 
+# num_clusters input. The clustering is performed with gaussian mean clustering 
+# using the scikitlearn GaussianMixture function. 
     from sklearn import mixture
     
     X = np.copy(indexes_conn)
@@ -134,7 +146,7 @@ def Clustering(indexes_conn,num_clusters):
     #gmm.means_: the index is the pole #, the numbers are the indexes of that pole
     
     #round and convert means to integers
-    means = np.copy(gmm.means_)
+    means = np.copy(gmm.means_) #the location (indexes) of the mean center of the cluster, where the pole is placed
     for i in range(len(gmm.means_)):
         means[i][0] = int(means[i][0])
         means[i][1] = int(means[i][1])
@@ -146,6 +158,10 @@ def Clustering(indexes_conn,num_clusters):
 #==============================================================================
 # Find non-exlcusion spot in growing circular manner
 def FindNonExclusionSpot(index_x_og, index_y_og, index_excl_comp,range_limit,max_y,max_x):
+# This function determines if the initial pole placement is in an exclusion zone. 
+# If the pole is in an exclusion zone, the function tests the area around the 
+# initial placement in a circular fashion to find the closest index location 
+# to the initial placement that is not an exclusion zone.     
     for i in range(range_limit):
         #Define limits
         x_min = int(index_x_og - i)
@@ -186,6 +202,8 @@ def FindNonExclusionSpot(index_x_og, index_y_og, index_excl_comp,range_limit,max
 #==============================================================================
 # Matching poles and connections by closest distance
 def MatchPolesConn(indexes_conn,indexes_poles,d_EW_between,d_NS_between):
+# This function creates an array to specify which poles connect to which houses, 
+# by which houses are closest to which poles.    
     ConnPoles = np.zeros((len(indexes_conn[:,0]),2))      
     DistanceConnPoles = DistanceBWindexes(indexes_conn,indexes_poles,d_EW_between,d_NS_between)
     for i in range(len(ConnPoles[:,0])):
@@ -195,10 +213,10 @@ def MatchPolesConn(indexes_conn,indexes_poles,d_EW_between,d_NS_between):
 #==============================================================================
 
 #===============================================================================
-# Match Connections to Poles Simplified Version
-#Instead of trying to find a feasible solution, just create penalties that can be weighted in the optimization
+# Match Connections to Poles
 def PolePlacement(reformatScaler,num_clusters,exclusionBuffer,range_limit,indexes_conn,indexes_excl,height,width,d_EW_between,d_NS_between):                    
-      
+# This function runs the previously mentioned functions together to determine 
+# the final pole placements.       
     #Get initial solution of pole indexes with Gaussian Mean Clustering
     #The mean of the clusters is the initial pole placement
     ConnPole_initial, initial_pole_placement = Clustering(indexes_conn,num_clusters)
@@ -243,6 +261,8 @@ def PolePlacement(reformatScaler,num_clusters,exclusionBuffer,range_limit,indexe
 #==============================================================================
 # Calculate the Cost of the penalties to use as the minimizing optimization value
 def PenaltiesToCost(reliability_cost, conn_wiring, LV_wiring, MV_wiring, num_LV_poles, num_MV_poles, ConnPoles):
+# This function calculates the total cost of the network including the equipment 
+# costs and reliability cost. The reliability cost can be set to zero.   
     #Load all Econ input
     Econ_Parameters = pd.read_excel('uGrid_Input.xlsx', sheet_name = 'Econ')
 
@@ -285,6 +305,8 @@ def PenaltiesToCost(reliability_cost, conn_wiring, LV_wiring, MV_wiring, num_LV_
 #==============================================================================
 # Collect the connection and exclusions data
 def CollectVillageData():
+# This function collects all of the data of the community needed to determine the network layout.    
+    
     #Load Files
     #Gather the information needed
     #Import csv file which has been converted from the klm file
@@ -337,7 +359,7 @@ def CollectVillageData():
     except:
         print("in except loop")
         #quit()
-        indexes_excl = ExclusionMapper1(ExclusionMap_array,reformatScaler,exclusionBuffer,d_EW_between,d_NS_between,width,height)
+        indexes_excl = ExclusionMapper(ExclusionMap_array,reformatScaler,exclusionBuffer,d_EW_between,d_NS_between,width,height)
 
     #Match the connection locations to locations in the array
     #Find distance between east limit of image and connection
@@ -371,6 +393,7 @@ def CollectVillageData():
 #==============================================================================
 # Plot All Poles and All wiring
 def Plot_AllPoles_AllWiring(POI,OnOff_MV, indexes_poles_MV, OnOff_groups, indexes_poles_groups, indexes_conn, ConnPoles, indexes_poles_LV_all):
+# This function plots all the wiring (MV, LV, and house connections) together on the same plot. 
     
     #MV Poles and Wiring
     num_poles_MV = len(indexes_poles_MV[:,0])
@@ -437,12 +460,14 @@ def Plot_AllPoles_AllWiring(POI,OnOff_MV, indexes_poles_MV, OnOff_groups, indexe
 #==============================================================================
 # Internal connected components recursive. This works because undirected
 def Check_connections(i,visited,OnOff):
+# This function is used internally to the ConnectedComponents and LineLosses 
+# functions. It determines which lines have been visited relevant to those functions.    
     for j in range(len(OnOff[i,:])):
         if OnOff[i,j] == 1 and visited[j] == 0: #if j in a pole (999 is default for not a pole, and that pole is not visited)
             visited[j] = 1
             Check_connections(j,visited,OnOff)
         #else continue to next pole
-    #Check OnOff from other direction
+    #Check OnOff from other direction - should be the same, dont need to check
     #for k in range(len(OnOff[:,i])):
     #    if OnOff[k,i] == 1 and visited[k] == 0: #if j in a pole (999 is default for not a pole, and that pole is not visited)
     #        visited[k] = 1
@@ -454,6 +479,9 @@ def Check_connections(i,visited,OnOff):
 #==============================================================================
 # Connected Components Code
 def ConnectedComponents(OnOff):
+# This function performed the graph theory connected components algorithm. It 
+# checks whether all lines have been visited to determine is there are islands 
+# in the network. 
     num_poles = len(OnOff[:,0])
     #Check # connected components
     visited = np.zeros(num_poles)
@@ -484,6 +512,7 @@ def PoleLoads(ConnPoles,num_poles):
 #==============================================================================
 # Edges matrix: n-1 on line loss. |pole 1|pole 2|load loss|
 def LineLosses(OnOff,ConnPoles,num_poles,Long_exc_min,Lat_exc_min,d_EW_between,d_NS_between,indexes_poles):
+# This function calculates the load loss due to the loss of the lines in the network.   
     #POI of generation is always last pole in group for either MV or LV groups
     POI = len(OnOff[0,:])-1
     #Calculate load amount at each pole
@@ -514,6 +543,8 @@ def LineLosses(OnOff,ConnPoles,num_poles,Long_exc_min,Lat_exc_min,d_EW_between,d
 #==============================================================================
 # Wiring Algorithm
 def WiringAlg(ConnPoles,prob,Cost_kWh,restoration_time,indexes_poles,wiring_cost,d_EW_between,d_NS_between,standalone):
+# This function determines the lowest cost network layout using a network 
+# reduction algorithm by using the previously mentioned functions.     
     t0 = time.time()
 
     #Load solution pole indexes
@@ -633,7 +664,9 @@ def WiringAlg(ConnPoles,prob,Cost_kWh,restoration_time,indexes_poles,wiring_cost
 
 #==============================================================================
 # Load behind each MV pole, to check that not over 220V line limit
-def loadBehindPoles(ConnPoles_MV, indexes_poles_HV,ConnPoles_LV, indexes_poles_LV,num_conns,MV_pole_num,load_per_conn):
+def loadBehindPoles(ConnPoles_MV, ConnPoles_LV, num_conns,MV_pole_num,load_per_conn):
+# This function determines the amount of load behind each pole to determine if 
+# the connected line is rated to handle that load capacity.     
     ConnPoles_LVMV = np.zeros(num_conns) #the MV pole that a house connects to
     load_behind_MV_poles = np.zeros(MV_pole_num)
     for i in range(num_conns):
@@ -675,8 +708,8 @@ if __name__ == "__main__":
     reformatScaler = int(Net_Parameters['reformatScaler'][0]) #parameter to decrease the resolution of image (speeds up processing)
     exclusionBuffer = int(Net_Parameters['exclusionBuffer'][0])#meters that poles need to be form exclusions (other poles, exclusions, and connections)
     MaxDistancePoleConn = int(Net_Parameters['MaxDistancePoleConn'][0])#(m) the maximum distance allowed for a pole to be from a connection
-    minPoles = 60#int(Net_Parameters['minPoles'][0])
-    maxPoles = 90#int(Net_Parameters['maxPoles'][0])
+    minPoles = int(Net_Parameters['minPoles'][0])
+    maxPoles = int(Net_Parameters['maxPoles'][0])
     range_limit = int(Net_Parameters['range_limit'][0])
     repeats = int(Net_Parameters['repeats'][0])
     Cost_kWh =  Net_Parameters['Cost_kWh'][0]
@@ -694,7 +727,7 @@ if __name__ == "__main__":
     repeats_improved_solution = 3
     total_repeats_lookback = repeats_improved_solution*repeats_MV_poles*repeats_LV_poles
     
-    Best_Total_Cost = 99999999999999999999
+    Best_Total_Cost = 99999999999999999999 #large dummy number
     
     #Community Load Data
     LoadKW_MAK = pd.read_excel('LoadKW_MAK.xlsx',index_col=None, header=None)
@@ -754,7 +787,7 @@ if __name__ == "__main__":
                     for repeat_num in range(repeats_MV_clusters):
                         ConnPoles_MV, indexes_poles_MV = PolePlacement(reformatScaler,MV_pole_num,exclusionBuffer,range_limit,indexes_poles_LV,indexes_excl,height,width,d_EW_between,d_NS_between)  
                         #Calculate load behind by clusters
-                        load_behind, ConnPoles_LVMV = loadBehindPoles(ConnPoles_MV, indexes_poles_MV,ConnPoles_LV, indexes_poles_LV,num_conns,MV_pole_num,load_per_conn)
+                        load_behind, ConnPoles_LVMV = loadBehindPoles(ConnPoles_MV, ConnPoles_LV, num_conns,MV_pole_num,load_per_conn)
                         if load_behind < LV_kW_safety:
                             break #Load behind the poles is below the limit, continue to wiring layout
                 
@@ -842,25 +875,35 @@ if __name__ == "__main__":
     Plot_AllPoles_AllWiring(indexes_gen, Best_OnOff_MV, Best_indexes_poles_MV, Best_OnOff_groups, Best_group_indexes, indexes_conn, Best_ConnPoles_LV, Best_indexes_poles_LV)
     
     #Save all solutions to csv's
+    #Reliability Cost Output
     filename = "List_Reliability_Costs_%s_soln.csv" %(str(reformatScaler))
     np.savetxt(filename,Total_Reliability_Cost, delimiter=",")
+    #Total Cost Output
     filename = "List_Total_Costs_%s_soln.csv" %(str(reformatScaler))
     np.savetxt(filename,Total_Cost_List, delimiter=",")
+    # MV Wiring Layout Output
     filename = "Best_OnOff_MV_%s_soln.csv" %(str(reformatScaler))
     np.savetxt(filename,Best_OnOff_MV, delimiter=",")
+    # MV Pole Placements Output
     filename = "Best_indexes_poles_MV_%s_soln.csv" %(str(reformatScaler))
     np.savetxt(filename,Best_indexes_poles_MV, delimiter=",")
     for group_save in range(len(Best_group_indexes)):
+        # Best Group Wiring Layout Output
         filename = "Best_OnOff_groups_%s_soln_%s.csv" %(str(reformatScaler),str(group_save))
         np.savetxt(filename,Best_OnOff_groups[group_save], delimiter=",")
+        #Best Group Pole Placements Output
         filename = "Best_group_indexes_%s_soln_%s.csv" %(str(reformatScaler),str(group_save))
         np.savetxt(filename,Best_group_indexes[group_save], delimiter=",")
+    #Best LV pole and house connections output
     filename = "Best_ConnPoles_LV_%s_soln.csv" %(str(reformatScaler))
     np.savetxt(filename,Best_ConnPoles_LV, delimiter=",")
+    # Best LV Pole Placements Output
     filename = "Best_indexes_poles_LV_%s_soln.csv" %(str(reformatScaler))
     np.savetxt(filename,Best_indexes_poles_LV, delimiter=",")
+    # Best MV pole and house connections output
     filename = "Best_ConnPoles_MV_%s_soln.csv" %(str(reformatScaler))
     np.savetxt(filename,Best_ConnPoles_MV, delimiter=",")
+    #Best Total Costs Output
     filename = "Best_Total_Cost_%s_soln.csv" %(str(reformatScaler))
     np.savetxt(filename,Best_Total_Cost_List, delimiter=",")
     
