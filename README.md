@@ -1,22 +1,48 @@
-# uGrid
+# uGrid and uGridNET
 
 uGrid is an open source code engineering design and decision tool developed to aid the engineering,
 procurement and construction (EPC) of sustainable, reliable minigrids. This toolset is built by the
 minigrid developer, OnePower Africa, to meet their development needs including resource sizing and 
 distribution network layout design. The toolset optimizing for a minimum cost of electricity, referred
 to as the levelized cost of electricity (LCOE). The toolset is composed of two tools, uGrid and
-uGridNet. uGrid performs resource sizing of solar, batteries, and propane generator based on
-yearly load and weather profiles and a dispatch algorithm, all of which is customizable. uGridNet
+uGridNet.
+<br/><br/>
+uGrid performs resource sizing of solar, batteries, and propane generator based on
+yearly load and weather profiles and a dispatch algorithm, all of which is customizable.
+<br/><br/>
+uGridNet
 performs distribution network layout design based on electricity connection locations, generation
 station location, exclusion ("can't build here") zones, and a reliability cost benefit assessment. 
 
 ## Getting Started
-Please read the "uGrid Documentation" word document in this folder for information on
-how to get started with these tools, including necessary input data and expected output.
 
-## Prerequisites
-The user will need Python 3 installed and the python packages: numpy, pandas, math, pdf2image,
-convert_from_path, PIL, time, and matplotlib.
+### Installation
+
+1. Create a virtual environment using <a href='https://docs.python.org/3/library/venv.html'>`venv`<a/> or <a href="https://docs.python-guide.org/dev/virtualenvs/">`pipenv`<a/> for the project and activate it.
+2. Install the requirements using `pip install -r requirements.txt` or `pipenv install`.
+
+### Run
+
+#### uGrid
+The uGrid code has 3 python files: `technical_tools_PC_3_alt.py`, `economic_tools_PC_3.py`, and `macro_PC_3_alt.py` 
+which contains the particle swarm algorithm. The program is run from `macro_PC_3_alt.py`, and it calls functions in the
+`technical_tools_PC_3_alt.py` and `macro_PC_3_alt.py` files. 
+
+All changes to adapt the code for a specific community are done from the input excel sheet called `uGrid_Input.xslx`. 
+There are additional spreadsheets for weather and load that need to be within the same folder as the toolset.
+
+See the Inputs section (in `uGrid Documentation.docx`) for information on what should be changed. Larger changes, such as technology changes, can be done in the code. See the sections on the python files for descriptions of the functions that can be changed for different control algorithms or technology changes. 
+
+When the macro code is run the results from each generation from particle swarm optimization are outputted to the command line. An excel spreadsheet is outputted as the specified name in the Input spreadsheet. The output spreadsheet contains the information from each generation, and the global best results from the optimization. 
+
+Functions exist in the technical python file to plot power flows. This is a manual process and can be improved by being automated in the code. 
+
+To run the uGrid tool, change the inputs in `uGrid_Input.xlsx` and then run `python macro_PC_3_alt.py` in the terminal.
+The results will be in the outputted excel spreadsheet. 
+
+
+For more information, please read the `uGrid Documentation.docx` in this folder for information on
+how to get started with these tools, including necessary input data and expected output.
 
 ## Authors
 
