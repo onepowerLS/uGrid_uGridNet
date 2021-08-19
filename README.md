@@ -16,7 +16,7 @@ how to get started with these tools, including necessary input data and expected
 
 ## Prerequisites
 The user will need Python 3 installed and the python packages: numpy, pandas, math, pdf2image,
-convert_from_path, PIL, time, and matplotlib.
+convert_from_path, PIL, time, networkx, shapely, openpyxl, geopandas and matplotlib.
 
 ## Authors
 
