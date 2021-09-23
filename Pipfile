@@ -4,6 +4,9 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
+xlsxwriter = "*"
+dropbox = "*"
+python-dotenv = "*"
 
 [dev-packages]
 
