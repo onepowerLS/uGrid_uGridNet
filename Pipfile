@@ -7,7 +7,13 @@ name = "pypi"
 xlsxwriter = "*"
 dropbox = "*"
 python-dotenv = "*"
-
+numpy = "*"
+pandas = "*"
+matplotlib = "*"
+seaborn = "*"
+requests = "*"
+mat4py = "*"
+openpyxl = "*"
 [dev-packages]
 
 [requires]

@@ -5,7 +5,7 @@
 
 
 import sys
-get_ipython().system('$sys.executable -m pip install numpy pandas matplotlib seaborn requests mat4py openpyxl ')
+# get_ipython().system('$sys.executable -m pip install numpy pandas matplotlib seaborn requests mat4py openpyxl ')
 
 
 # In[2]:
@@ -16,7 +16,7 @@ import pandas as pd
 import numpy as np
 from itertools import product
 import matplotlib as plt
-from IPython.core.debugger import set_trace
+# from IPython.core.debugger import set_trace
 import pdb
 import itertools as it
 
