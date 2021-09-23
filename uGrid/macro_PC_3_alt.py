@@ -128,14 +128,14 @@ if __name__ == "__main__":
             #calculate technical parameters
             Propane_ec[m,iteration], Batt_SOC, LoadkW, P_gen, P_PV, P_batt, P_dump,Limit_charge, Limit_discharge, BattkW, Batt_kWh_tot_ec[m,iteration],loadkWh,peakload = Tech_total(Parameters[0,m,iteration],Parameters[1,m,iteration])
             #don't need to save Gt_panel, final, Batt_SOC, and Charge these are used to validate program
-               
             LoanPrincipal, year, Cost, Revenue, CashonHand, Balance, M, O, tariff[m,iteration], Batt_life_yrs[m,iteration] = Econ_total(Propane_ec[m,iteration],Parameters[1,m,iteration]*peakload,Parameters[0,m,iteration]*peakload,Batt_kWh_tot_ec[m,iteration],peakload,loadkWh)
             #order of parameters: batt, PV, CSP, ORC, TES_ratio
         
    
             #Checking Outputs
             print("This individual's yearly propane and tariff is: " +str(Propane_ec[m,iteration]) + ", " +str(tariff[m,iteration]))
-
+            #print("peakload = " +str(peakload))
+            
             #Find generation best
             if tariff[m,iteration] < gB_change_tariff_plus[iteration] or (tariff[m,iteration] < gB_change_tariff[iteration] and Propane_ec[m,0] < gB_change_propane[iteration]):
                 gB_change_tariff[iteration] = np.copy(tariff[m,iteration])
@@ -223,7 +223,8 @@ if __name__ == "__main__":
     Total_Cost = sum(gB_Cost)
     #add extra variables to solution output
     #This raises the error: ValueError: If using all scalar values, you must pass an index
-    gB_total_var =pd.DataFrame({'Total Cost':[Total_Cost],'Simulation_Time':[total_time]})
+    gB_total_var =pd.DataFrame({'Total Cost':[Total_Cost],'Simulation_Time':[total_time], 'Peak Load':[peakload]})
+    print(gB_total_var)
 
     #gB_optimization_output_var = np.zeros((4,maxGen-1))
     gB_optimization_output_var = {'BattkW':gB_change_parameters[0,:],'PVkW':gB_change_parameters[1,:], 'Propane':gB_change_propane,'Tariff':gB_change_tariff}
