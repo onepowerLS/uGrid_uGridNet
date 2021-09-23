@@ -36,6 +36,7 @@ if __name__ == "__main__":
     #Call in Inputs
     #PSO Parameters
     PSO_Parameters = pd.read_excel('uGrid_Input.xlsx', sheet_name = 'PSO')
+    #TODO: Here
     maxGen = PSO_Parameters['maxGen'][0]
     numInd = PSO_Parameters['numInd'][0]
     X_tariff_multiplier = PSO_Parameters['X_tariff_multiplier'][0]
@@ -86,6 +87,7 @@ if __name__ == "__main__":
     gB_tariff_plus = gB_tariff*(1+X_tariff_multiplier)
     gB_parameters = np.zeros(2)
     LoadKW_MAK = pd.read_excel('LoadKW_MAK.xlsx',index_col=None, header=None)
+    #TODO: Here
     hmax = len(LoadKW_MAK)
     gB_Cost = np.zeros(hmax)
     data_plot_variables = np.zeros((hmax,6))
@@ -235,6 +237,8 @@ if __name__ == "__main__":
 
     #Print Results to Excel (Optimization and Solution Variables)
     filename_xlsx = "uGrid_Output_"+PSO_Parameters['output_name'][0]+".xlsx"
+    #TODO: Here
+
     writer = pd.ExcelWriter(filename_xlsx, engine='xlsxwriter')
 
     # Convert the dataframe to an XlsxWriter Excel object.
