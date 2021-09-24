@@ -83,7 +83,7 @@ print(_8760)
 _8760 = _8760.to_numpy()
 print(_8760)
 
-array = np.delete(temp_full_year_energy.to_numpy(),0,1)
+array = np.delete(template_full_year_energy.to_numpy(),0,1)
 print(array)
 
 # set all nonzero values in template_full_year_energy to 1 and store the results in a new array
