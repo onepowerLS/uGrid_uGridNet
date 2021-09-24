@@ -12,6 +12,8 @@ import numpy as np
 import pandas as pd
 import math
 import matplotlib.pyplot as plt
+from full_year_energy import * 
+
 
 
 # from numba import jit
@@ -319,7 +321,8 @@ def Tech_total(BattkWh_Parametric, PVkW_Parametric):
     # Load excel files containing LoadKW_MAK, FullYearEnergy, final
     LoadKW_MAK = pd.read_excel('LoadKW_MAK.xlsx', index_col=None, header=None)
     # TODO: Here
-    FullYearEnergy = pd.read_excel('FullYearEnergy.xlsx', index_col=None, header=None)
+    #FullYearEnergy = pd.read_excel('FullYearEnergy.xlsx', index_col=None, header=None) 
+    FullYearEnergy = full_year_energy_calc(day_totals, modified8760, indices)
     # TODO: Here
     MSU_TMY = pd.read_excel('MSU_TMY.xlsx')
     # TODO: Here
