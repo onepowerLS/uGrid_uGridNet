@@ -311,7 +311,7 @@ def CollectVillageData():
     #Gather the information needed
     #Import csv file which has been converted from the klm file
     #This gives the points of connections which are houses to link to the distribution grid
-    Connect_nodes = pd.read_excel('MAK_connections.xlsx', sheet_name = 'connections')
+    Connect_nodes = pd.read_excel('MAK_connections.xlsx', sheet_name = 'sql_statement')
     Exclusion_nodes = pd.read_excel('MAK_exclusions.xlsx', sheet_name = 'MAK_exclusions')
             
     #Identify gps coordinate min and max to determine coordinates of edges of jpg image

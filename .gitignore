@@ -51,3 +51,8 @@ Temporary Items
 .idea
 
 #Enviroment variables
+.env
+
+#Output variables
+*/*.csv
+
