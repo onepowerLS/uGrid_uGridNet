@@ -11,15 +11,25 @@ This creates a LV 220V and MV 6.3kV network layout, where the MV works as a back
 Including N-1 Reliability Cost-Benefit of Wiring Layout
 
 @author: Phy
+
 """
 
+import os
 import numpy as np
 import pandas as pd
+import geopandas as gpd
 import math as m
+import networkx as nx
+import datetime as dt
 from pdf2image import convert_from_path
 from PIL import Image
+from shapely.geometry import Point, LineString
+from openpyxl import Workbook
+from openpyxl.utils.dataframe import dataframe_to_rows
+from openpyxl.drawing.image import Image as img
 import time
 import matplotlib.pyplot as plt
+
 
 #==============================================================================
 #Calculate Distance between GPS coordinates with Haversine Formula (returns in m)
@@ -93,7 +103,6 @@ def ExclusionMapper(ExclusionMap_array,reformatScaler,exclusionBuffer,d_EW_betwe
     indexes = np.array(indexes)
     print("finished new indexing")
 
-    
     #Save new indexes
     index_csv_name = "indexes_reformatted_%s_bufferzone_%s.csv" %(str(reformatScaler),str(exclusionBuffer))
     np.savetxt(index_csv_name,indexes, delimiter=",")
@@ -104,32 +113,29 @@ def ExclusionMapper(ExclusionMap_array,reformatScaler,exclusionBuffer,d_EW_betwe
 
 #=============================================================================
 # Get Distance between array indexes
-def DistanceBWindexes(indexesA,indexesB,d_EW_between,d_NS_between):
+def DistanceBWindexes(indexesA, indexesB, d_EW_between, d_NS_between):
 # This function calculates the distances between array indexes. This works for 
 # any array, just the distance between indexes (or “pixels”) needs to be inputted.
     if len(indexesA) == 2:
         #This is a single index submission
         A_sqr = m.pow(((indexesA[0]-indexesB[0])*d_EW_between),2)
-        B_sqr = m.pow(((indexesA[1]-indexesB[1])*d_EW_between),2)
+        B_sqr = m.pow(((indexesA[1]-indexesB[1])*d_NS_between),2)
     else:
         #This is multiple indexes
-        A_sqr = np.zeros((len(indexesA), len(indexesB)))
-        B_sqr = np.zeros((len(indexesA), len(indexesB)))
-        for i in range(len(indexesA)):
-            for j in range(len(indexesB)):
-                #print(indexesA)
-                A_sqr[i,j] = m.pow(((indexesA[i,0]-indexesB[j,0])*d_EW_between),2)
-                #print(indexesA[i,0]-indexesB[j,0])
-                #print((indexesA[i,0]-indexesB[j,0])*d_EW_between)
-                #print(math.pow(((indexesA[i,0]-indexesB[j,0])*d_EW_between),2))
-                B_sqr[i,j] = m.pow(((indexesA[i,1]-indexesB[j,1])*d_NS_between),2)
+        Ax, Bx = np.meshgrid(indexesA[:, 0], indexesB[:, 0])
+        Ay, By = np.meshgrid(indexesA[:, 1], indexesB[:, 1])
+        
+        A_sqr = np.power((Ax.T - Bx.T)*d_EW_between, 2)
+        B_sqr = np.power((Ay.T - By.T)*d_NS_between, 2)
     DistanceAB = np.sqrt(A_sqr+B_sqr)
     return DistanceAB
 #=============================================================================
 
+    
+        
 #==============================================================================
 # Clustering of Connections for Initial Solution Pole Placement
-def Clustering(indexes_conn,num_clusters):
+def Clustering(indexes_conn, num_clusters):
 # This function clusters the house location to obtain initial placements of 
 # the LV (220V) poles. The number of clusters to create is set by the 
 # num_clusters input. The clustering is performed with gaussian mean clustering 
@@ -260,44 +266,12 @@ def PolePlacement(reformatScaler,num_clusters,exclusionBuffer,range_limit,indexe
  
 #==============================================================================
 # Calculate the Cost of the penalties to use as the minimizing optimization value
-def PenaltiesToCost(reliability_cost, conn_wiring, LV_wiring, MV_wiring, num_LV_poles, num_MV_poles, ConnPoles):
-# This function calculates the total cost of the network including the equipment 
-# costs and reliability cost. The reliability cost can be set to zero.   
-    #Load all Econ input
-    Econ_Parameters = pd.read_excel('uGrid_Input.xlsx', sheet_name = 'Econ')
-
-    #Pull out costs needed for penalties
-    Cost_Conn_Wire = Econ_Parameters['Cost_Housing_Wiring'][0]/1000 #converting per km to per m 
-    Cost_LV_Wire = Econ_Parameters['Cost_Dist_wire'][0]/1000 #converting per km to per m 
-    Cost_MV_Wire = Econ_Parameters['Cost_Trans_wire'][0]/1000 #converting per km to per m 
-    Cost_Pole = Econ_Parameters['Cost_Pole'][0]
-    Cost_StepDown_Trans = Econ_Parameters['Cost_Pole_Trans'][0]
-    Cost_StepUp_Trans = Econ_Parameters['Cost_Step_up_Trans'][0]
-
-    #Pole Cost
-    Total_Cost_Pole = (num_LV_poles+num_MV_poles+1)*Cost_Pole #Add plus one pole for POI of gen pole
+def PenaltiesToCost(reliability_cost, costs, dfpoles, dfnet, dfdropline):
+    # This function calculates the total cost of the network including the equipment 
+    # costs and reliability cost. The reliability cost can be set to zero.   
+    net_cost = NetworkCost(costs, dfpoles, dfnet, dfdropline)
     
-    #Wiring Costs
-    Total_Cost_Conn_Wiring = conn_wiring*Cost_Conn_Wire
-    Total_Cost_LV_Wiring = LV_wiring*Cost_LV_Wire
-    Total_Cost_MV_Wiring = MV_wiring*Cost_MV_Wire
-    Total_All_Wiring = Total_Cost_Conn_Wiring+Total_Cost_LV_Wiring+Total_Cost_MV_Wiring
-    
-    #Transformer Costs
-    #Step-down (one at each MV pole, excluding POI of generation)
-    Total_Cost_StepDown_Trans = num_MV_poles*Cost_StepDown_Trans
-    Total_Trans_Cost = Total_Cost_StepDown_Trans+Cost_StepUp_Trans #one step-up trans at POI of gen.     
-    
-    #Meter Costs
-    meter_cost_poles= []
-    for j in range(num_LV_poles):
-        conn_per_pole = int(np.ceil(np.count_nonzero(ConnPoles[:,0]==j)))
-        meter_cost = -0.0042*conn_per_pole**5 + 0.1604*conn_per_pole**4 - 2.3536*conn_per_pole**3 + 16.776*conn_per_pole**2 - 59.5*conn_per_pole + 111.25
-        meter_cost_poles.append(meter_cost)
-    Total_meter_cost = sum(meter_cost_poles)
-    
-    Total_cost = Total_meter_cost + Total_Trans_Cost + Total_All_Wiring + Total_Cost_Pole + reliability_cost
-    
+    Total_cost = net_cost['Line Total (USD)'].values.sum() + reliability_cost
     return Total_cost
 #==============================================================================        
  
@@ -311,7 +285,7 @@ def CollectVillageData():
     #Gather the information needed
     #Import csv file which has been converted from the klm file
     #This gives the points of connections which are houses to link to the distribution grid
-    Connect_nodes = pd.read_excel('MAK_connections.xlsx', sheet_name = 'sql_statement')
+    Connect_nodes = pd.read_excel('MAK_Connections.xlsx', sheet_name = 'sql_statement')
     Exclusion_nodes = pd.read_excel('MAK_exclusions.xlsx', sheet_name = 'MAK_exclusions')
             
     #Identify gps coordinate min and max to determine coordinates of edges of jpg image
@@ -372,10 +346,10 @@ def CollectVillageData():
         d_Nconnection = np.zeros(len(Connect_nodes))
         indexes_conn = np.zeros((len(Connect_nodes),2))
         for i in range(len(Connect_nodes)): #iteration through connections
-            d_Econnection[i] = GPStoDistance(Lat_exc_min,Lat_exc_min,Long_exc_min,m.radians(Connect_nodes['longitude'][i])) #m
+            d_Econnection[i] = GPStoDistance(Lat_exc_min,Lat_exc_min,Long_exc_min,m.radians(Connect_nodes['x'][i])) #m
             #print(d_Econnection[i])
             #distance of connection to the east (left) (x index)
-            d_Nconnection[i] = GPStoDistance(Lat_exc_min,m.radians(Connect_nodes['latitude'][i]),Long_exc_min,Long_exc_min) #m
+            d_Nconnection[i] = GPStoDistance(Lat_exc_min,m.radians(Connect_nodes['y'][i]),Long_exc_min,Long_exc_min) #m
             #print(d_Nconnection[i])
             #distance of connection to the north (top) (y index)
             #Get array index locations of all connections
@@ -392,7 +366,7 @@ def CollectVillageData():
  
 #==============================================================================
 # Plot All Poles and All wiring
-def Plot_AllPoles_AllWiring(POI,OnOff_MV, indexes_poles_MV, OnOff_groups, indexes_poles_groups, indexes_conn, ConnPoles, indexes_poles_LV_all):
+def Plot_AllPoles_AllWiring(POI, OnOff_MV, indexes_poles_MV, OnOff_groups, indexes_poles_groups, indexes_conn, ConnPoles, indexes_poles_LV_all):
 # This function plots all the wiring (MV, LV, and house connections) together on the same plot. 
     
     #MV Poles and Wiring
@@ -466,13 +440,6 @@ def Check_connections(i,visited,OnOff):
         if OnOff[i,j] == 1 and visited[j] == 0: #if j in a pole (999 is default for not a pole, and that pole is not visited)
             visited[j] = 1
             Check_connections(j,visited,OnOff)
-        #else continue to next pole
-    #Check OnOff from other direction - should be the same, dont need to check
-    #for k in range(len(OnOff[:,i])):
-    #    if OnOff[k,i] == 1 and visited[k] == 0: #if j in a pole (999 is default for not a pole, and that pole is not visited)
-    #        visited[k] = 1
-    #        Check_connections(k,visited,OnOff)
-    
     return visited
 #==============================================================================
     
@@ -568,11 +535,6 @@ def WiringAlg(ConnPoles,prob,Cost_kWh,restoration_time,indexes_poles,wiring_cost
         OnOff = np.zeros((num_poles,num_poles)) 
         for i in range(num_poles):
             for j in range(1,num_conn_per_pole): #start at 1 to avoid first column of zeros. Nothing is stopping this from going over num_poles
-                #print("i")
-                #print(i)
-                #print("j")
-                #print(j)
-                #print("*********")
                 ind = np.where(DistancesBWPoles == DistancesBWPoles_sorted[i,j]) #This is going to give two values, need adjust so only one half of matrix is considered
                 #Place in use connection
                 x = ind[0][0]
@@ -658,7 +620,7 @@ def WiringAlg(ConnPoles,prob,Cost_kWh,restoration_time,indexes_poles,wiring_cost
     t1 = time.time()
     total_time = t1-t0
     
-    return Best_total_distance, OnOff, DistancesBWPoles, num_conn_per_pole, Best_Reliability_Cost,Best_Wire_Cost, total_time
+    return Best_total_distance, OnOff, DistancesBWPoles, num_conn_per_pole, Best_Reliability_Cost, Best_Wire_Cost, total_time
     
 #==============================================================================
 
@@ -680,7 +642,7 @@ def loadBehindPoles(ConnPoles_MV, ConnPoles_LV, num_conns,MV_pole_num,load_per_c
     
 #==============================================================================
 # Calculate Closest Pole to POI (point of interconnection) to generation
-def POI_Pole(lat_Generation,long_Generation,Long_exc_min,Lat_exc_min,d_EW_between,d_NS_between,indexes_poles):
+def POI_Pole(lat_Generation,long_Generation,Long_exc_min,Lat_exc_min,d_EW_between,d_NS_between,indexes_poles,d_BW_Adj_Poles):
     EW_dis = GPStoDistance(Lat_exc_min,Lat_exc_min,Long_exc_min,long_Generation)
     NS_dis = GPStoDistance(Lat_exc_min,lat_Generation,Long_exc_min,Long_exc_min)
     EW_index = int(EW_dis/d_EW_between)
@@ -694,14 +656,822 @@ def POI_Pole(lat_Generation,long_Generation,Long_exc_min,Lat_exc_min,d_EW_betwee
         Distance = DistanceBWindexes(indexes_gen,indexes_poles[i,:],d_EW_between,d_NS_between) #Type error: only size-1 arrays can be converted to Python Scalars
         Distance_Gen_Poles[i] = Distance
     closest_pole = np.argmin(Distance_Gen_Poles)
+    Distance_Gen_Poles[closest_pole] = 90000000000 # put dummy number
+    closest_pole2 = np.argmin(Distance_Gen_Poles)
+    edge_dist = d_BW_Adj_Poles/np.sqrt(d_EW_between**2 + d_NS_between**2)
+    edge = [indexes_poles[closest_pole, :], indexes_poles[closest_pole2, :],
+            np.sqrt(np.sum(np.power(indexes_poles[closest_pole2, :] - indexes_poles[closest_pole, :], 2)))]
     
-    return closest_pole, indexes_gen
+    Points = IntermediatePoints(edge, edge_dist)
+    new_distances = np.zeros(len(Points))
+    for i in range(len(Points)):
+        new_distances[i] =  DistanceBWindexes(indexes_gen, Points[i, :],d_EW_between,d_NS_between)
+    idx = np.argmin(new_distances)
+    return [closest_pole, closest_pole2], indexes_gen, Points[idx, :]
 #==============================================================================
 
 
+#==============================================================================
+# Given an edge (p1, p2, d_p1_p2), and allowable distance between adjacent points
+# create intermediate points along the straight line connecting the two nodes
+def IntermediatePoints(edge, edge_dist):
+    P1, P2, k = edge # unpack points
+    if k < 1.3*edge_dist:
+        return np.vstack((np.array([P1[0], P1[1]]), np.array([P2[0], P2[1]])))
+
+    nodes_num = int(k//edge_dist) # number of nodes to add
+    
+    if nodes_num == 0:
+        nodes_num = 1
+        
+    h_incr = 0 # horizontal increment
+    v_incr = 0 # vertical increment
+    if P2[0] == P1[0]:
+        if P2[1] > P1[1]:
+            theta = np.pi/2
+            v_incr = edge_dist
+        else:
+            theta = 3*np.pi/2
+            v_incr = -edge_dist
+    if P2[1] == P1[1]:
+        if P2[0] > P1[0]:
+            theta = 0
+            h_incr = edge_dist
+        else:
+            theta = np.pi
+            h_incr = -edge_dist
+    if P2[0] != P1[0] and P2[1] != P1[1]:
+        g = (P2[1] - P1[1])/(P2[0] - P1[0]) # evaluate gradient
+        # Determine theta and direction
+        theta = m.atan(g)
+        if P2[0] > P1[0] and P2[1] > P1[1]: # 1st Quadrant 
+            h_incr = edge_dist*m.cos(theta) 
+            v_incr = edge_dist*m.sin(theta) 
+            
+        elif P2[0] < P1[0] and P2[1] > P1[1]: # 2nd Quadrant 
+             h_incr = -edge_dist*m.cos(theta) 
+             v_incr = -edge_dist*m.sin(theta) 
+             
+        elif P2[0] < P1[0] and P2[1] < P1[1]: # 3rd Quadrant 
+             h_incr = -edge_dist*m.cos(theta) 
+             v_incr = -edge_dist*m.sin(theta) 
+             
+        elif P2[0] > P1[0] and P2[1] < P1[1]: # 4th Quadrant 
+             h_incr = edge_dist*m.cos(theta) 
+             v_incr = edge_dist*m.sin(theta)
+    
+    new_nodes = np.array([P1[0], P1[1]])
+    for i in range(nodes_num):
+        x_i = P1[0] + (i + 1)*h_incr
+        y_i = P1[1] + (i + 1)*v_incr
+        node = np.array([int(x_i), int(y_i)])
+        new_nodes = np.vstack((new_nodes, node))
+    new_nodes = np.vstack((new_nodes, np.array([P2[0], P2[1]])))
+    
+    # If the distance between the last two poles is less than 30%, remove the 
+    # last intermediate pole
+    d_last = np.sqrt(np.sum(np.power(new_nodes[-1, :] - new_nodes[-2,:], 2)))
+    if d_last < 0.15*edge_dist:
+        new_nodes = np.vstack((new_nodes[:-3, :], new_nodes[-1, :]))
+    return new_nodes
+#==============================================================================
+
+#==============================================================================
+# Evaluate Intermediate Poles respecting exclusion zones
+def MVIntermediatePoles(indexes, OnOffMV, d_BW_Poles, d_BW_Adj_Poles, index_excl_comp, range_limit, max_y, max_x):
+    
+    OnOff = np.triu(OnOffMV) # Take connectivity from the upper triangle (above diagonal)
+    # Taking the lower triangle would reverse starting points and end points
+    # and would have to be indexed by columns instead of rows
+    pairs = []
+    for i, index in enumerate(indexes):
+        idxs = np.where(OnOff[i, :] == 1)[0]
+        if not list(idxs):
+            pass
+        else:
+            for idx in idxs:
+                d = d_BW_Poles[i][idx]
+                pairs.append([index, indexes[idx, :], d])
+                
+    # Convert absolute distance to pixel distance
+    edge = pairs[0]
+    edge_d = np.sqrt(np.sum((edge[0] - edge[1])**2))
+    pixel_d = edge_d/edge[2] # pixel distance per meter
+    threshold = d_BW_Adj_Poles*pixel_d # 
+    
+    new_pairs = np.array([])
+    for e in pairs:
+        e[2] = e[2]*pixel_d
+        if not list(new_pairs):
+            new_pairs = IntermediatePoints(e, threshold)
+        else:
+            new_pairs = np.vstack((new_pairs, IntermediatePoints(e, threshold)))
+    new_pairs = np.unique(new_pairs, axis=0) # Remove repeating points
+    
+    # Respect the exclusion zones
+    for i, pt in enumerate(new_pairs):
+        if pt[1] in indexes[:, 1] and pt[0] in indexes[:, 0]:
+            pass
+        else:
+            x, y = FindNonExclusionSpot(pt[0], pt[1], index_excl_comp, range_limit, max_y, max_x)
+            new_pairs[i, :] = np.array([x, y])
+        
+    return  new_pairs
+#==============================================================================
+
+
+#==============================================================================
+# Evaluate angle formed by three points
+def AngleBWPoints(P_END_1, P_Mid, P_END_2, d_EW_between, d_NS_between):
+    
+    def angle(P1, P2):
+        if P2[0] == P1[0] and P2[1] > P1[1]:
+            return np.pi/2
+        elif P2[0] == P1[0] and P2[1] < P1[1]:
+            return 3*np.pi/2
+        elif P2[1] == P1[1] and P2[0] > P1[0]:
+            return 0
+        elif P2[1] == P1[1] and P2[0] < P1[0]:
+            return np.pi
+        else:
+            g = (P1[1] - P2[1])*d_NS_between/((P1[0] - P2[0])*d_EW_between)
+            theta = m.atan(g)
+            
+            if P2[1] > P1[1] and P2[0] > P1[0]: # First Quadrant
+                return theta
+            elif P2[1] > P1[1] and P2[0] < P1[0]: # Second Qudrant
+                return np.pi - np.abs(theta)
+            elif P2[1] < P1[1] and P2[0] < P1[0]: # Third Quadrant
+                return theta + np.pi
+            elif P2[1] < P1[1] and P2[0] > P1[0]: # Fourth Quadrant
+                return 2*np.pi - np.abs(theta)
+    theta1 = angle(P_Mid, P_END_1)
+    theta2 = angle(P_Mid, P_END_2)
+    angles = np.degrees([theta1, theta2])
+    if abs(angles[1] - angles[0]) <= 180:
+        return 180 - abs(angles[1] - angles[0])
+    else: 
+        return 180 - (360 - abs(angles[1] - angles[0]))
+    
+#==============================================================================
+
+
+
+#==============================================================================
+# Return Minimum Spanning Tree 
+def MST(indexes, d_EW_between, d_NS_between):
+    """
+    This function implements a least cost network using Prim's minimum spanning 
+    tree algorithm
+    """
+    points = list(zip(indexes[:, 0]*d_EW_between, indexes[:, 1]*d_NS_between))
+    try:
+        rand_point = np.random.choice(points)
+    except:
+        rand_point = points[0]
+    fPts = [rand_point] # initialize arbitrary starting points
+    pts = list(points.copy()) # create shallow copy of the points
+    pts.remove(rand_point)
+    cPts = [] # connected points
+    while len(pts) != 0:
+        dist = [] # distances to all points
+        dmins = [] # minimum distances
+        for pt in fPts:
+            dist.append([((pt[0] - pti[0])**2 + (pt[1] - pti[1])**2)**(1/2) for pti in pts])
+        for dlist in dist:
+            dmins.append(min(dlist)) # add minimum distance to this list
+        # determine the index of the list with minimum distance    
+        list_idx = dmins.index(min(dmins)) 
+        # find the index of the minimum distance in a list it is in
+        mind_idx = dist[list_idx].index(min(dist[list_idx]))
+        
+        cPts.append([fPts[list_idx], pts[mind_idx]]) # add a pair of connected points
+        fPts.append(pts[mind_idx])
+        pts.remove(pts[mind_idx])
+    G = nx.Graph()
+    G.add_edges_from(cPts)
+    return G
+#==============================================================================
+
+#==============================================================================
+# Return Minimum Spanning Tree Connectivity matrix
+def MSTConnectivityMatrix(indexes, d_EW_between, d_NS_between):
+    points = list(zip(indexes[:, 0]*d_EW_between, indexes[:, 1]*d_NS_between))
+    G = MST(indexes, d_EW_between, d_NS_between)
+    connectivityMatrix = nx.adjacency_matrix(G, nodelist=points).todense()
+    return connectivityMatrix
+#==============================================================================
+
+
+#==============================================================================
+# Put poles into respective branches
+def EvaluateBranches(source_index, indexes, d_EW_between, d_NS_between):
+    source_node = (source_index[0]*d_EW_between, source_index[1]*d_NS_between) 
+    G = MST(indexes, d_EW_between, d_NS_between)
+    G.remove_node(source_node)
+    branches = list(nx.connected_components(G))
+    branches_ = []
+    for b in branches:
+        indexes_ = np.array(list(b))
+        indexes_[:, 0] = indexes_[:, 0]/d_EW_between
+        indexes_[:, 1] = indexes_[:, 1]/d_NS_between
+        branches_.append(indexes_)
+    return branches_
+#==============================================================================
+
+
+#==============================================================================
+# Classify poles by angle
+def PoleAngleClass(pole_indexes, d_EW_between, d_NS_between, ntype):
+    connectivity = MSTConnectivityMatrix(pole_indexes, d_EW_between, d_NS_between)
+    classes = []
+    for i in range(len(pole_indexes)):
+        neighbors = np.sum(connectivity[i, :])
+        p_mid = pole_indexes[i, :]
+        if neighbors == 1:
+            classes.append('terminal')
+        elif neighbors == 2:
+            neighbors_idx = np.where(connectivity[i, :] == 1)[1]
+            p_end_1 = pole_indexes[neighbors_idx[0], :]
+            p_end_2 = pole_indexes[neighbors_idx[1], :]
+            agl = AngleBWPoints(p_end_1, p_mid, p_end_2, d_EW_between, d_NS_between)
+            if ntype == 'LV':
+                if agl == 0 or agl == 180:
+                    classes.append("mid_straight")
+                elif agl < 60:
+                    classes.append("mid_less_60")
+                elif agl > 60:
+                    classes.append("mid_over_60")
+            elif ntype == 'MV':
+                if agl == 0 or agl == 180:
+                    classes.append("mid_straight")
+                elif agl < 30:
+                    classes.append("mid_less_30")
+                elif agl > 30:
+                    classes.append("mid_over_30")
+        elif neighbors > 2:
+            neighbors_idx = np.where(connectivity[i, :] == 1)[1]
+            p_ends = pole_indexes[neighbors_idx, :]
+           
+            d_BW_p_ends = DistanceBWindexes(p_ends, p_ends, d_EW_between, d_NS_between)
+            d_BW_p_ends = d_BW_p_ends + np.diagflat(np.ones(neighbors)*99999999)
+            # Evaluate for all combinations of middle pole and all neighbors
+            angles = np.zeros(neighbors)
+            for j in range(neighbors):
+                n1 = p_ends[j, :]
+                index_n2 = np.argmin(d_BW_p_ends[j, :])
+                n2 = p_ends[index_n2, :]
+                d_BW_p_ends[index_n2, j] = 999999
+                angles[j] = AngleBWPoints(n1, p_mid, n2, d_EW_between, d_NS_between)
+                
+            agl = angles.min()
+            if ntype == 'LV':
+                if agl == 0 or agl == 180:
+                    classes.append("mid_straight")
+                elif agl < 60:
+                    classes.append("mid_less_60")
+                elif agl > 60:
+                    classes.append("mid_over_60")
+            elif ntype == 'MV':
+                if agl == 0 or agl == 180:
+                    classes.append("mid_straight")
+                elif agl < 30:
+                    classes.append("mid_less_30")
+                elif agl > 30:
+                    classes.append("mid_over_30")
+    classes_ = pd.DataFrame(pole_indexes, columns = ['index_x', 'index_y'])
+    classes_['AngleClass'] = classes 
+    return classes_
+#==============================================================================
+
+
+#==============================================================================
+# Get elevation of pole indexes using the generation latitude and logitude as 
+# reference point from the open access API open-elevation
+def PoleElevation(gen_LON, gen_LAT, gen_indexes, target_indexes, d_EW_between, d_NS_between):
+    import requests
+    GPD = gpd.GeoDataFrame(geometry=[Point(np.degrees(gen_LAT), np.degrees(gen_LON))])
+    GPD = GPD.set_crs("EPSG:4326") # WGS84
+    GPD = GPD.to_crs("EPSG:32733") # Transform to UTM (Mercator)
+    X, Y = list(GPD.geometry.values[0].coords)[0]
+    X_Shifts = (gen_indexes[0] - target_indexes[:, 0])*d_EW_between
+    Y_Shifts = (gen_indexes[1] - target_indexes[:, 1])*d_NS_between
+    DF = pd.DataFrame({'index_x':target_indexes[:,0], 'index_y':target_indexes[:,1],
+                       'UTM_X':X - X_Shifts, 'UTM_Y':Y - Y_Shifts})
+    new_GDF = gpd.GeoDataFrame(DF, geometry=gpd.points_from_xy(DF.UTM_X, DF.UTM_Y))
+    new_GDF = new_GDF.set_crs("EPSG:32733")
+    new_GDF = new_GDF.to_crs("EPSG:4326") 
+    gps = np.array([[list(i.coords)[0][0], list(i.coords)[0][1]] for i in new_GDF.geometry.values])
+    url = "https://maps.googleapis.com/maps/api/elevation/json?locations="
+    for idx, pt in enumerate(new_GDF.geometry.values):
+        lat, lon = list(pt.coords)[0]
+        if idx < len(new_GDF) - 1:
+            url = url + str(lat) + ',' + str(lon) + '|'
+        else:
+            url = url + str(lat) + ',' + str(lon)
+    url = url + '&key=AIzaSyB7NCOraSbaIBDVg2-BU5D_mX_Q2BwZV2E'
+    payload = {}
+    headers = {}
+    response = requests.request('GET', url, headers=headers, data=payload).json()
+    elevations = [res['elevation'] for res in response['results']]
+    return np.array(elevations),  list(DF.UTM_X), list(DF.UTM_Y), gps
+#==============================================================================
+
+
+#==============================================================================
+# Evaluate the altitude angle
+def CorrectLengthAngle(horizontald1_2, elevation1, elevation2):
+    net_elevation = np.abs(elevation1 - elevation2)
+    cosine = horizontald1_2/np.sqrt(net_elevation**2 + horizontald1_2**2)
+    return [np.degrees(m.acos(cos_)) for cos_ in cosine]
+#==============================================================================
+
+
+#==============================================================================
+# Evaluate network segments length on a 2D plane
+def NetworkLength(indexes, d_EW_between, d_NS_between):
+    mst = MST(indexes, d_EW_between, d_NS_between)
+    edges =list(mst.edges)
+    og_indexes = np.zeros((len(edges), 4))
+    for i, e in enumerate(edges):
+        X = np.array(e)
+        og_indexes[i, 0] = X[0, 0]/d_EW_between
+        og_indexes[i, 1] = X[0, 1]/d_NS_between
+        og_indexes[i, 2] =  X[1, 0]/d_EW_between
+        og_indexes[i, 3] = X[1, 1]/d_NS_between
+    df = pd.DataFrame(data=og_indexes, columns=['index_x_from', 'index_y_from', 
+                                                'index_x_to', 'index_y_to'])
+    gdf = gpd.GeoDataFrame(df, geometry=[LineString(e) for e in edges])
+    gdf['length'] = [s.length for s in gdf.geometry.values]
+    return gdf
+#==============================================================================
+
+
+#==============================================================================
+# Evaluate the cost of the network
+def NetworkCost(costs, dfpoles, dfnet, dfdropline):
+    result_df = pd.DataFrame()
+    references = ['Assembly - Pole - MV - Start',
+                  'Assembly - Step - Down - Transformer',
+                  'Assembly - Pole - MV - Mid',
+                  'Assembly - Pole - MV - Bend <30',
+                  'Assembly - Pole - MV - Bend >30',
+                  'Assembly - Pole - MV - End',
+                  'Assembly - Pole - LV - Mid',
+                  'Assembly - Pole - LV - Bend <60',
+                  'Assembly - Pole - LV - Bend >60',
+                  'Assembly - Pole - LV - End',
+                  'Wire - MV',
+                  'Wire - LV',
+                  'Wire - LineDrop',
+                  'Assembly - Meter']
+   
+    mv_ref = dfpoles[dfpoles.Type == 'MV']
+    mv_ref = mv_ref[mv_ref.distance_from_source != 0]
+    lv_ref = dfpoles[dfpoles.Type == 'LV']
+    quantity = np.zeros(len(references))
+    quantity[0] = 1
+    num_transformers = 0
+    for item in mv_ref.ID.values:
+        if item[-1].isalpha() == True:
+            num_transformers += 1
+    quantity[1] = num_transformers
+    
+    mv_pole_counts = mv_ref.value_counts(subset=['AngleClass'])
+    try:
+        quantity[2] = mv_pole_counts['mid_straight']
+    except:
+        pass
+    try:
+        quantity[3] = mv_pole_counts['mid_less_30']
+    except:
+        pass
+    try:
+        quantity[4] = mv_pole_counts['mid_over_30']
+    except:
+        pass
+    try:
+        quantity[5] = mv_pole_counts['terminal']
+    except:
+        pass
+    
+    lv_pole_counts = lv_ref.value_counts(subset=['AngleClass'])
+    try:
+        quantity[6] = lv_pole_counts['mid_straight']
+    except:
+        pass
+    try:
+        quantity[7] = lv_pole_counts['mid_less_60']
+    except:
+        pass
+    try:
+        quantity[8] = lv_pole_counts['mid_over_60']
+    except:
+        pass
+    try:
+        quantity[9] = lv_pole_counts['terminal']
+    except:
+        pass
+    
+    # Lines length
+    mvnet = dfnet[dfnet.Type == 'MV']
+    lvnet = dfnet[dfnet.Type != 'MV']
+    quantity[10] = mvnet.adj_length.values.sum()
+    quantity[11] = lvnet.adj_length.values.sum()
+    
+    # Line drop to households
+    quantity[12] = dfdropline.Linedrop.values.sum()
+    quantity[13] = len(dfdropline)
+    
+    temp_df = pd.DataFrame({'Part Reference':references,
+                            'Qty':quantity,
+                            'Price (USD)':costs})
+    
+    result_df = temp_df[['Part Reference', 'Qty','Price (USD)']]
+    result_df['Line Total (USD)'] = result_df['Qty']*result_df['Price (USD)']
+    return result_df
+#==============================================================================
+
+
+#==============================================================================
+# Classify the poles by concession, MV/LV, Angle 
+def ClassifyNetworkPoles(concession, gen_LAT, gen_LON, gen_site_indexes, indexes_MV_Poles_wPOI, group_indexes_LV,
+                         OnOff_MV, d_BW_Poles_MV, index_excl_comp, d_BW_Adj_Poles, range_limit, max_y, max_x,
+                         d_EW_between, d_NS_between, indexes_conn, conc_id = None):
+    base = concession.upper()[0:3]
+    if conc_id != None:
+        base = concession.upper()[0:3] + str(conc_id)
+    # MV Pole  and LV Pole Naming
+    MV_poles_names = []
+    MV_Pole_indexes = np.array([])
+    
+    LV_Poles_names = []
+    LV_Pole_indexes = np.array([])
+    
+    AngleClasses = pd.DataFrame()
+    network_length = gpd.GeoDataFrame()
+    droplines = pd.DataFrame()
+    basen = base + 'M'
+    gen_index = gen_site_indexes
+    if not list(MV_Pole_indexes):
+        MV_Pole_indexes = np.array([gen_index[0], gen_index[1], 0])
+    else:
+        MV_Pole_indexes = np.vstack((MV_Pole_indexes, np.array([gen_index[0], gen_index[1], 0])))
+    MV_poles_names.append(basen + str(1))
+    t_gen_idx = np.array([gen_index[0]*d_EW_between, gen_index[1]*d_NS_between])
+    mv_poles = indexes_MV_Poles_wPOI
+    Yt = mv_poles*np.array([d_EW_between, d_NS_between])
+    ydists = np.sqrt(np.sum(np.power(Yt - t_gen_idx, 2), axis=1))
+    ydists_copy = np.copy(ydists)
+    ydists_copy.sort()
+    A = np.zeros((len(mv_poles), 2))
+    ordered_idxs = [np.where(ydists == val)[0][0] for val in ydists_copy]
+    A[:, 0] = mv_poles[:, 0][ordered_idxs]
+    A[:, 1] = mv_poles[:, 1][ordered_idxs]
+    all_MV_Poles = MVIntermediatePoles(mv_poles, OnOff_MV, d_BW_Poles_MV, d_BW_Adj_Poles, index_excl_comp, range_limit, max_y, max_x)
+    angle_class_ = PoleAngleClass(all_MV_Poles, d_EW_between, d_NS_between, 'MV')
+    if len(AngleClasses) == 0:
+        AngleClasses = angle_class_
+    else:
+        AngleClasses = pd.concat([AngleClasses, angle_class_])
+    net_len = NetworkLength(all_MV_Poles, d_EW_between, d_NS_between)
+    net_len['Type'] = 'MV'
+    if len(network_length) == 0:
+        network_length = net_len
+    else:
+        network_length = pd.concat([network_length, net_len])
+    branches = EvaluateBranches(gen_index, all_MV_Poles, d_EW_between, d_NS_between)
+    for j, branch in enumerate(branches):
+        n = j*100
+        Xt = branch*np.array([d_EW_between, d_NS_between])
+        dists = np.sqrt(np.sum(np.power(Xt - t_gen_idx, 2), axis=1))
+        dists_copy = np.copy(dists)
+        dists_copy.sort()
+        B = np.zeros((len(branch), 3))
+        ordered_index = [np.where(dists == val)[0][0] for val in dists_copy]
+        B[:, 0:2] = branch[ordered_index]
+        B[:, 2] = dists_copy
+        MV_Pole_indexes = np.vstack((MV_Pole_indexes, B))
+        names_ = [basen + str(n + i) for i in range(2, len(branch)+2)]
+        t_counter = 65 # why start at 65? letter A is represented by 65, B 66 and so on
+        for k in range(len(A)):
+            if A[k, :] in branch:
+                pos_row, pos_col = np.where(B[:, 0:2] == A[k, :])
+                names_[pos_row[0]] = names_[pos_row[0]] + str(chr(t_counter))
+                t_counter += 1
+        MV_poles_names += names_
+    
+    # Low Voltage Poles
+    group = group_indexes_LV
+    sub_network_counter = 65
+    for id_, g in enumerate(group):
+        net_len = NetworkLength(g, d_EW_between, d_NS_between)
+        net_len['Type'] = 'LV' + str(id_ + 1)
+        if len(network_length) == 0:
+            network_length = net_len
+        else:
+            network_length = pd.concat([network_length, net_len])
+        branch_counter = 65
+        for a in A:
+            del_idx_x, del_idx_y = np.where(g == a)
+            if len(del_idx_x) == 2 and del_idx_x[0] == del_idx_x[1]:
+            #if a in g:
+                temp_pole_class = PoleAngleClass(g, d_EW_between, d_NS_between, 'LV')
+                #temp_pole_class.remove(temp_pole_class[del_idx_x[0]])
+                if len(AngleClasses) == 0:
+                    AngleClasses = temp_pole_class
+                else:
+                    AngleClasses = pd.concat([AngleClasses, temp_pole_class])
+                branches_ = EvaluateBranches(a, g, d_EW_between, d_NS_between)
+                for b_ in branches_:
+                    source = np.array([a[0]*d_EW_between, a[1]*d_NS_between])
+                    X = b_*np.array([d_EW_between, d_NS_between])
+                    dists = np.sqrt(np.sum(np.power(X - source, 2), axis=1))
+                    dists_copy = np.copy(dists)
+                    dists_copy.sort()
+                    C = np.zeros((len(b_), 3))
+                    ordered_index = [np.where(dists == val)[0][0] for val in dists_copy]
+                    C[:, 0:2] = b_[ordered_index]
+                    C[:, 2] = dists_copy
+                    if not list(LV_Pole_indexes):
+                        LV_Pole_indexes = C
+                    else:
+                        LV_Pole_indexes = np.vstack((LV_Pole_indexes, C))
+                    LV_Poles_names += [base + chr(sub_network_counter) + chr(branch_counter) + str(m+1) for m in range(len(b_))]
+                branch_counter += 1
+        sub_network_counter += 1
+        
+    # Determine customer connections
+    lv_poles = np.concatenate(group)
+    del_idx_x, del_idx_y = [], []
+    for ir in range(len(mv_poles)):
+        x = mv_poles[ir, 0]
+        y = mv_poles[ir, 1]
+        idx_x = np.where(lv_poles[:, 0] == x)[0]
+        idx_y = np.where(lv_poles[:, 1] == y)[0]
+        if not list(idx_x) or not list(idx_y):
+            pass
+        elif idx_x[0] == idx_y[0]:
+            del_idx_x.append(idx_x[0])
+            del_idx_y.append(idx_y[0])
+    lv_poles_ = np.delete(lv_poles, del_idx_x, axis=0)
+    
+    dist_poles_conns = DistanceBWindexes(lv_poles_, indexes_conn, d_EW_between, d_NS_between)
+    min_dists = dist_poles_conns.min(axis=0)
+    min_idxs_x, min_idxs_y = np.where(dist_poles_conns == min_dists)
+    T_lv_poles = lv_poles_*np.array([d_EW_between, d_NS_between])
+    T_associated_conns = indexes_conn*np.array([d_EW_between, d_NS_between])
+    temp_from_idx, temp_to_idx, temp_from_idy, temp_to_idy = [],[],[],[]
+    lines = []
+    for idx, idy in zip(min_idxs_x, min_idxs_y):
+        temp_from_idx.append(lv_poles_[idx, 0])
+        temp_to_idx.append(indexes_conn[idy, 0])
+        temp_from_idy.append(lv_poles_[idx, 1])
+        temp_to_idy.append(indexes_conn[idy, 1])
+        lines.append(LineString((T_lv_poles[idx, :], T_associated_conns[idy, :])))
+    temp_df = pd.DataFrame({'index_x_from':temp_from_idx,
+                            'index_y_from':temp_from_idy,
+                            'index_x_to':temp_to_idx,
+                            'index_y_to':temp_to_idy,
+                            'Linedrop':min_dists})
+    droplines = gpd.GeoDataFrame(temp_df, geometry=lines)
+    
+    # Put pole classes into a dataframe and geodataframe
+    DF = pd.DataFrame(data=np.vstack((MV_Pole_indexes, LV_Pole_indexes)), columns=['index_x', 'index_y', 'distance_from_source'])
+    DF['ID'] = MV_poles_names + LV_Poles_names
+    DF['Type'] = ['MV']*len(MV_poles_names) + ['LV']*len(LV_Poles_names)
+    AngleClasses = AngleClasses.drop_duplicates(subset=['index_x', 'index_y'])
+    
+    DF = DF.sort_values(by=['index_x', 'index_y'])
+    AngleClasses = AngleClasses.sort_values(by=['index_x', 'index_y'])
+    DF['AngleClass'] = AngleClasses['AngleClass'].values
+    
+    gen_index = gen_site_indexes
+    data = DF#[DF.concession == conc]
+    target_indexes = data.filter(items=['index_x', 'index_y']).to_numpy()
+    el, utm_x, utm_y, gps = PoleElevation(gen_LON, gen_LAT, gen_site_indexes, target_indexes, d_EW_between, d_NS_between)
+    DF['elevation'] = el
+    DF['UTM_X'] = utm_x
+    DF['UTM_Y'] = utm_y
+    DF['GPS_X'] = list(gps[:, 0])
+    DF['GPS_Y'] = list(gps[:, 1])
+    GDF = gpd.GeoDataFrame(DF, geometry=gpd.points_from_xy(DF.index_x*d_EW_between,
+                                                           DF.index_y*d_NS_between))
+    
+    # Put nework lines into a dataframe and geodataframe
+    from_indexes = np.zeros((len(network_length), 2))
+    from_indexes[:, 0] = network_length.index_x_from.values
+    from_indexes[:, 1] = network_length.index_y_from.values
+    
+    to_indexes = np.zeros((len(network_length), 2))
+    to_indexes[:, 0] = network_length.index_x_to.values
+    to_indexes[:, 1] = network_length.index_y_to.values
+    el1, utm_x, utm_y, gps = PoleElevation(gen_LON, gen_LAT, gen_site_indexes, from_indexes, d_EW_between, d_NS_between)
+    el2, utm_x, utm_y, gps = PoleElevation(gen_LON, gen_LAT, gen_site_indexes, to_indexes, d_EW_between, d_NS_between)
+    pole_elevation = CorrectLengthAngle(network_length.length.values, el1, el2)
+    network_length['elevation_angle'] = pole_elevation
+    network_length['adj_length'] = network_length['length']/np.cos(np.radians(network_length.elevation_angle))
+    
+    connections = pd.DataFrame({'index_x':indexes_conn[:, 0], 'index_y':indexes_conn[:, 1]})
+    geometry = [Point(p[0], p[1]) for p in T_associated_conns]
+    connections = gpd.GeoDataFrame(connections, geometry=geometry)
+    
+    return GDF, network_length, droplines, connections
+#==============================================================================
+
+
+#==============================================================================
+# Put the results in an excel file 
+def ConcessionDetails(dfpoles, dfnet, dfdropline, dfcosts, connections, concession, conc_id=None):
+    path = os.path.join(os.getcwd(), concession) # directory to save in
+    if os.path.isdir(path):
+        pass
+    else:
+        os.mkdir(path)
+    # Save these into excel
+    wb = Workbook()
+    wb.create_sheet(title="PoleClasses", index=0)
+    wb.create_sheet(title="NetworkLength", index=1)
+    wb.create_sheet(title="DropLines", index=2)
+    wb.create_sheet(title="Connections", index=3)
+    wb.create_sheet(title="NetworkLayout", index=4)
+    wb.create_sheet(title='NetworkCost', index=5)
+    ws = wb["PoleClasses"]
+    for row in dataframe_to_rows(dfpoles.drop(columns=['geometry']), header=True):
+        ws.append(row)
+    ws = wb["NetworkLength"]
+    for row in dataframe_to_rows(dfnet.drop(columns=['geometry']), header=True):
+        ws.append(row)
+    ws = wb['DropLines']
+    for row in dataframe_to_rows(dfdropline.drop(columns=['geometry']), header=True):
+        ws.append(row)
+    ws = wb['Connections']
+    for row in dataframe_to_rows(connections.drop(columns=['geometry']), header=True):
+        ws.append(row)
+    
+    # Evaluate date and time on which the simulation is done
+    simdate = dt.datetime.today() # simulation date
+
+    # Define a function that ensures double digits for day of the month
+    add0 = lambda x: '0'+str(x) if x < 10 else str(x)
+    
+    filename = str(simdate.year) + add0(simdate.month) + add0(simdate.day) + \
+        '_' + add0(simdate.hour) + add0(simdate.minute) + '_' + concession.upper()[0:3] + \
+        '_uGrid'
+    ws = wb["NetworkLayout"]
+    fig, ax = plt.subplots(dpi=250)
+    dfpoles[dfpoles.Type == "MV"].plot(column='Type', s=8, ax=ax, legend=False)
+    dfpoles[dfpoles.Type == "LV"].plot(column='Type', s=4, ax=ax, legend=False)
+    connections.plot(markersize=2, color='brown', ax=ax, legend=False)
+    dfdropline.plot(lw=0.5, ax=ax, color='red', legend=False)
+    dfnet[dfnet.Type != "MV"].plot(column="Type", lw=0.7,ax=ax,legend=False)
+    dfnet[dfnet.Type == "MV"].plot(lw=1,ax=ax, color='blue',legend=False)
+    plt.savefig(concession+'.png')
+    ws.add_image(img(concession+'.png'), 'B4')
+    
+    ws = wb['NetworkCost']
+    for row in dataframe_to_rows(dfcosts, index=True, header=True):
+        ws.append(row)
+    free_cell_loc = len(dfcosts)+3
+    ws['D'+str(free_cell_loc)] = 'Total'
+    ws['E'+str(free_cell_loc)] = dfcosts['Line Total (USD)'].values.sum()
+    if conc_id == None:
+        wb.save(path+'/'+ filename + ".xlsx")
+    else:
+        wb.save(path+'/'+ filename + str(conc_id)+ ".xlsx")
+#==============================================================================
+
+#==============================================================================
+def AddSpur(concession, filename, gen_LON, gen_LAT, gen_indexes, indexes, type_,
+            d_EW_between, d_NS_between, costs, conc_id=None):
+    path = os.path.join(os.getcwd(), concession) # directory
+    try:
+        poleclasses = pd.read_excel(path+'/'+filename+".xlsx", sheet_name='PoleClasses', skiprows=[1])
+        networklength = pd.read_excel(path+'/'+filename+".xlsx", sheet_name='NetworkLength', skiprows=[1])
+        droplines = pd.read_excel(path+'/'+filename+".xlsx", sheet_name='DropLines', skiprows=[1])
+        conns = pd.read_excel(path+'/'+filename+".xlsx", sheet_name='Connections', skiprows=[1])
+    except:
+        poleclasses = pd.read_excel(path+'/'+filename+str(conc_id)+".xlsx", sheet_name='PoleClasses', skiprows=[1])
+        networklength = pd.read_excel(path+'/'+filename+str(conc_id)+".xlsx", sheet_name='NetworkLength', skiprows=[1])
+        droplines = pd.read_excel(path+'/'+filename+str(conc_id)+".xlsx", sheet_name='DropLines', skiprows=[1])
+        conns = pd.read_excel(path+'/'+filename+str(conc_id)+".xlsx", sheet_name='Connections', skiprows=[1])
+    poleclasses = poleclasses.drop(columns= ['Unnamed: 0'])
+    pclasses = poleclasses[poleclasses.Type == type_.upper()]
+    
+    pole_indexes = pclasses.filter(items=['index_x', 'index_y']).to_numpy()
+    pole_ids = pclasses.ID.values
+    d_bw_poleidxs_newidxs = DistanceBWindexes(pole_indexes, indexes, d_EW_between, d_NS_between)
+    min_dstanc = d_bw_poleidxs_newidxs.min()
+    x_index, y_index = np.where(d_bw_poleidxs_newidxs == min_dstanc)
+    base_ID = pole_ids[x_index[0]]
+    conn_pole = pole_indexes[x_index[0], :]
+    source = np.array([conn_pole[0]*d_EW_between, conn_pole[1]*d_NS_between])
+    X = indexes*np.array([d_EW_between, d_NS_between])
+    dists = np.sqrt(np.sum(np.power(X - source, 2), axis=1))
+    dists_copy = np.copy(dists)
+    dists_copy.sort()
+    C = np.zeros((len(indexes), 2))
+    ordered_index = [np.where(dists == val)[0][0] for val in dists_copy]
+    C[:, 0:2] = indexes[ordered_index]
+    indexes_IDs = []
+    for i in range(len(C)):
+        indexes_IDs.append(base_ID + 'S'+str(i+1))
+    nw_indxs = np.vstack([C, conn_pole])
+    nw_classes = PoleAngleClass(nw_indxs, d_EW_between, d_NS_between, type_)
+    nw_classes = nw_classes[:-1]
+    el, utmx, utmy, gps = PoleElevation(gen_LON, gen_LAT, gen_indexes, C, d_EW_between, d_NS_between)
+    nw_classes['distance_from_source'] = dists_copy
+    nw_classes['ID'] = indexes_IDs
+    nw_classes['elevation'] = el
+    nw_classes['UTM_X'] = utmx
+    nw_classes['UTM_Y'] = utmy
+    nw_classes['Type'] = type_
+    nw_classes['GPS_X'] = gps[:, 0]
+    nw_classes['GPS_Y'] = gps[:, 1]
+    new_poleclasses = pd.concat([poleclasses, nw_classes])
+    
+    GDF = gpd.GeoDataFrame(new_poleclasses, 
+                           geometry=gpd.points_from_xy(new_poleclasses.index_x*d_EW_between,
+                                                       new_poleclasses.index_y*d_NS_between))
+    
+    from_idxs_net = networklength.filter(items=['index_x_from', 'index_y_from']).to_numpy()
+    to_idxs_net = networklength.filter(items=['index_x_to', 'index_y_to']).to_numpy()
+    from_coords = from_idxs_net*np.array([d_EW_between, d_NS_between])
+    to_coords = to_idxs_net*np.array([d_EW_between, d_NS_between])
+    Lines = [LineString((from_coords[i, :], to_coords[i, :])) for i in range(len(to_coords))]
+    if type_ == 'MV':
+        net_len = NetworkLength(nw_indxs, d_EW_between, d_NS_between)
+        net_len['Type'] = 'MV'
+    else:
+        ntlength = networklength[networklength.Type != 'MV']
+        id_ = None
+        for typ in ntlength.Type.unique():
+            nt = ntlength[ntlength.Type == typ]
+            
+            from_ = np.zeros((len(nt), 2))
+            from_[:, 0] = nt.index_x_from.values
+            from_[:, 1] = nt.index_y_from.values
+            
+            to_ = np.zeros((len(nt), 2))
+            to_[:, 0] = nt.index_x_to.values
+            to_[:, 1] = nt.index_y_to.values
+            
+            from_minus = np.abs(from_ - conn_pole)
+            to_minus = np.abs(to_ - conn_pole)
+            
+            if from_minus.min(axis=0)[0] == 0 and from_minus.min(axis=0)[1] == 0:
+                id_ = typ
+                break
+            if to_minus.min(axis=0)[0] == 0 and to_minus.min(axis=0)[1] == 0:
+                id_ = typ
+                break
+        net_len = NetworkLength(nw_indxs, d_EW_between, d_NS_between)
+        net_len['Type'] = id_
+        
+     # Put nework lines into a dataframe and geodataframe
+    from_indexes = np.zeros((len(net_len), 2))
+    from_indexes[:, 0] = net_len.index_x_from.values
+    from_indexes[:, 1] = net_len.index_y_from.values
+    
+    to_indexes = np.zeros((len(net_len), 2))
+    to_indexes[:, 0] = net_len.index_x_to.values
+    to_indexes[:, 1] = net_len.index_y_to.values
+    el1, utm_x, utm_y, gps = PoleElevation(gen_LON, gen_LAT, gen_indexes, from_indexes, d_EW_between, d_NS_between)
+    el2, utm_x, utm_y, gps = PoleElevation(gen_LON, gen_LAT, gen_indexes, to_indexes, d_EW_between, d_NS_between)
+    pole_elevation = CorrectLengthAngle(net_len.length.values, el1, el2)
+    net_len['elevation_angle'] = pole_elevation
+    net_len['adj_length'] = net_len['length']/np.cos(np.radians(net_len.elevation_angle))
+    
+    networklength = gpd.GeoDataFrame(networklength, geometry=Lines)
+    net_len = pd.concat([networklength, net_len])
+    
+    networkcost = NetworkCost(costs, poleclasses, networklines, droplines)
+    
+    drop_fro = droplines.filter(items=['index_x_from', 'index_y_from']).to_numpy()
+    drop_to = droplines.filter(items=['index_x_to', 'index_y_to']).to_numpy()
+    
+    drop_fro = drop_fro*np.array([d_EW_between, d_NS_between])
+    drop_to = drop_to*np.array([d_EW_between, d_NS_between])
+    
+    lines = [LineString((drop_fro[i, :], drop_to[i, :])) for i in range(len(drop_to))]
+    droplines = gpd.GeoDataFrame(droplines, geometry=lines)
+    
+    indexes_conn = conns.to_numpy()
+    T_associated_conns = indexes_conn*np.array([d_EW_between, d_NS_between])
+    connections = pd.DataFrame({'index_x':indexes_conn[:, 0], 'index_y':indexes_conn[:, 1]})
+    geometry = [Point(p[0], p[1]) for p in T_associated_conns]
+    connections = gpd.GeoDataFrame(connections, geometry=geometry)
+    
+    ConcessionDetails(GDF, net_len, droplines, networkcost, connections, concession, conc_id)
+
+#==============================================================================
+
+#==============================================================================
 if __name__ == "__main__":
     
     t0 = time.time()
+    # Specify concession
+    concession = 'Makebe'
     
     #Set Inputs for optimizations
     Net_Parameters = pd.read_excel('uGrid_Input.xlsx', sheet_name = 'Net')
@@ -717,11 +1487,11 @@ if __name__ == "__main__":
     lat_Generation = m.radians(Net_Parameters['lat_Generation'][0])
     long_Generation = m.radians(Net_Parameters['long_Generation'][0])
     
-    repeats_MV_clusters = 10
-    repeats_LV_clusters = 10
+    repeats_MV_clusters = 1
+    repeats_LV_clusters = 1
     
-    repeats_LV_poles = 10
-    repeats_MV_poles = 10
+    repeats_LV_poles = 1
+    repeats_MV_poles = 1
     
     repeats_improved_solution = 3
     total_repeats_lookback = repeats_improved_solution*repeats_MV_poles*repeats_LV_poles
@@ -743,19 +1513,15 @@ if __name__ == "__main__":
     
     #Load all Econ input
     Econ_Parameters = pd.read_excel('uGrid_Input.xlsx', sheet_name = 'Econ')
-    #Pull out wiring costs
-    Cost_LV_Wire = Econ_Parameters['Cost_Dist_wire'][0]/1000 #converting per km to per m 
-    Cost_MV_Wire = Econ_Parameters['Cost_Trans_wire'][0]/1000 #converting per km to per m 
-    
-    wiring_cost_MV = Cost_MV_Wire
+   
     probability_MV = int(Net_Parameters['prob_MV'][0])
     restoration_time_MV = int(Net_Parameters['restoration_time_MV'][0])
 
     
-    wiring_cost_LV = Cost_LV_Wire
     probability_LV = int(Net_Parameters['prob_LV'][0])
     restoration_time_LV = int(Net_Parameters['restoration_time_LV'][0])
     
+    print("About to collect village data")
     #Collect Village Data (connections and exclusion zones)
     indexes_conn, indexes_excl, height, width, d_EW_between, d_NS_between,Long_exc_max, Long_exc_min,Lat_exc_max, Lat_exc_min = CollectVillageData()
     num_conns = len(indexes_conn[:,0])
@@ -766,8 +1532,14 @@ if __name__ == "__main__":
     Total_Reliability_Cost = []
     NoDecrease = 0
     
+    # Load Components/Assembly costs
+    ComponentsCost = pd.read_excel('uGrid_Input.xlsx', sheet_name = 'NetComponentsCost')
+    costs = ComponentsCost.UnitPrice.values
+    wiring_cost_MV = costs[10]
+    wiring_cost_LV = costs[11]
+    
     #Cycle through for best solution
-    for i in range(minPoles,maxPoles):
+    for i in range(minPoles, maxPoles):
         for nrep_LV in range(repeats_LV_poles):
             #Clustering for LV Poles
             ConnPoles_LV, indexes_poles_LV = PolePlacement(reformatScaler,i,exclusionBuffer,range_limit,indexes_conn,indexes_excl,height,width,d_EW_between,d_NS_between)                    
@@ -790,37 +1562,34 @@ if __name__ == "__main__":
                         if load_behind < LV_kW_safety:
                             break #Load behind the poles is below the limit, continue to wiring layout
                 
-                ##Plot poles to make sure it makes sense
-                #cmap =  plt.cm.get_cmap('hsv', MV_pole_num)
-                #fig, ax = plt.subplots()
-                #for i in range(MV_pole_num):
-                #    for j in range(LV_pole_num):
-                #        if ConnPoles_MV[j,0] == i:
-                #            plt.scatter(indexes_poles_LV[j, 0], indexes_poles_LV[j, 1], s=1,c=cmap(i),marker='.')#, color=color)
-                #    plt.scatter(indexes_poles_MV[i,0],indexes_poles_MV[i,1],s=3,c=cmap(i), marker= '^')
-                #ax.set_aspect('equal')
-                #plt.show()
 
                 #Calculate HV Wiring Layout
                 #Find POI of generation
-                closest_pole, indexes_gen = POI_Pole(lat_Generation,long_Generation,Long_exc_min,Lat_exc_min,d_EW_between,d_NS_between,indexes_poles_MV)
+                closest_pole, indexes_gen, connection_point = POI_Pole(lat_Generation,long_Generation,Long_exc_min,Lat_exc_min,d_EW_between,d_NS_between,indexes_poles_MV, 50)
+                
                 #add POI_MV to wiring for MV
                 indexes_Poles_MV_wPOI = np.concatenate((indexes_poles_MV, [indexes_gen]), axis=0)
                 total_distance_MV, OnOff_MV, DistancesBWPoles_MV, num_conn_per_pole_MV, reliability_cost_MV, wire_cost_MV, total_time_MV = WiringAlg(ConnPoles_LVMV,probability_MV,Cost_kWh,restoration_time_MV,indexes_Poles_MV_wPOI,wiring_cost_MV,d_EW_between,d_NS_between,"False")
+                
                 #Calculate LV Wiring Layout
                 #Group indexes according to connecting MV pole
                 group_indexes = []
                 group_poles = []
                 for MV_pole in range(MV_pole_num):
-                    temp_group_indexes = []
+                    temp_group_indexes = np.array([])
                     temp_group_poles = []
                     for LV_pole in range(LV_pole_num):
                         if ConnPoles_MV[LV_pole,0] == MV_pole:
-                            temp_group_indexes.append(indexes_poles_LV[LV_pole,:])
+                            if not list(temp_group_indexes):
+                                temp_group_indexes = indexes_poles_LV[LV_pole,:]
+                            else:
+                                temp_group_indexes = np.vstack((temp_group_indexes, indexes_poles_LV[LV_pole,:]))
                             temp_group_poles.append(LV_pole)
-                    temp_group_indexes.append(indexes_poles_MV[MV_pole,:]) #add MV pole location to end
+                    temp_group_indexes = np.vstack((temp_group_indexes, indexes_poles_MV[MV_pole,:])) #add MV pole location to end
                     group_indexes.append(temp_group_indexes)
                     group_poles.append(temp_group_poles)
+                
+                
                 #Determine wiring layout
                 OnOff_groups = []
                 DistanceBWPoles_groups = []
@@ -834,86 +1603,50 @@ if __name__ == "__main__":
                     total_distance_LV = total_distance_LV + total_distance_temp
                     reliability_cost_LV.append(reliability_cost_temp)
                 
-                total_reliability_cost_LVMV = sum(reliability_cost_LV) + reliability_cost_MV
-                    
-                #Calculate Costs
-                #Connection Total Distance
-                conn_wiring = sum(ConnPoles_LV[:,1])
-                Total_Cost = PenaltiesToCost(total_reliability_cost_LVMV, conn_wiring, total_distance_LV, total_distance_MV, LV_pole_num, MV_pole_num, ConnPoles_LV)
-                #Save Best Solution Based on Cost
-                if Total_Cost < Best_Total_Cost and max(ConnPoles_LV[:,1]) < MaxDistancePoleConn:
-                    #Save Best Solutions
-                    Best_OnOff_MV = np.copy(OnOff_MV)
-                    Best_indexes_poles_MV = np.copy(indexes_Poles_MV_wPOI)
-                    Best_OnOff_groups = np.copy(OnOff_groups)
-                    Best_group_indexes = np.copy(group_indexes)
-                    Best_ConnPoles_LV = np.copy(ConnPoles_LV)
-                    Best_indexes_poles_LV = np.copy(indexes_poles_LV)
-                    Best_ConnPoles_MV = np.copy(ConnPoles_MV)
-                    Best_Total_Cost = int(Total_Cost)
-                    Best_Total_Cost_List.append(Total_Cost)
-                print("This iteration's total cost is $"+str(int(Total_Cost))+" and the best total cost is $"+str(Best_Total_Cost)+".")
-                print("This iteration's maximum distance between a house and a LV pole is "+str(round(max(ConnPoles_LV[:,1]),2))+" and the allowable distance is "+str(MaxDistancePoleConn)+".")
-                temp_time = time.time() - t_temp
-                print("This iteration's calculation time is "+str(round(temp_time,2))+"s.")
-                print("************************************************************************")
-                
-                #If solution hasn't improved, stop iterations
-                Total_Reliability_Cost.append(total_reliability_cost_LVMV)
-                Total_Cost_List.append(Total_Cost)
-                total_iterations = len(Total_Cost_List)
-                if total_iterations > total_repeats_lookback:
-                    if min(Total_Cost_List[total_iterations-total_repeats_lookback:total_iterations]) > Best_Total_Cost:
-                        #If solution hasn't improved in the last total repeats lookback count exit iterations
-                        NoDecrease = 1
-                
-                #add iteration to while loop
-                nrep_MV += 1
-                    
-    #Plot layouts
-    Plot_AllPoles_AllWiring(indexes_gen, Best_OnOff_MV, Best_indexes_poles_MV, Best_OnOff_groups, Best_group_indexes, indexes_conn, Best_ConnPoles_LV, Best_indexes_poles_LV)
-    
-    #Save all solutions to csv's
-    #Reliability Cost Output
-    filename = "List_Reliability_Costs_%s_soln.csv" %(str(reformatScaler))
-    np.savetxt(filename,Total_Reliability_Cost, delimiter=",")
-    #Total Cost Output
-    filename = "List_Total_Costs_%s_soln.csv" %(str(reformatScaler))
-    np.savetxt(filename,Total_Cost_List, delimiter=",")
-    # MV Wiring Layout Output
-    filename = "Best_OnOff_MV_%s_soln.csv" %(str(reformatScaler))
-    np.savetxt(filename,Best_OnOff_MV, delimiter=",")
-    # MV Pole Placements Output
-    filename = "Best_indexes_poles_MV_%s_soln.csv" %(str(reformatScaler))
-    np.savetxt(filename,Best_indexes_poles_MV, delimiter=",")
-    for group_save in range(len(Best_group_indexes)):
-        # Best Group Wiring Layout Output
-        filename = "Best_OnOff_groups_%s_soln_%s.csv" %(str(reformatScaler),str(group_save))
-        np.savetxt(filename,Best_OnOff_groups[group_save], delimiter=",")
-        #Best Group Pole Placements Output
-        filename = "Best_group_indexes_%s_soln_%s.csv" %(str(reformatScaler),str(group_save))
-        np.savetxt(filename,Best_group_indexes[group_save], delimiter=",")
-    #Best LV pole and house connections output
-    filename = "Best_ConnPoles_LV_%s_soln.csv" %(str(reformatScaler))
-    np.savetxt(filename,Best_ConnPoles_LV, delimiter=",")
-    # Best LV Pole Placements Output
-    filename = "Best_indexes_poles_LV_%s_soln.csv" %(str(reformatScaler))
-    np.savetxt(filename,Best_indexes_poles_LV, delimiter=",")
-    # Best MV pole and house connections output
-    filename = "Best_ConnPoles_MV_%s_soln.csv" %(str(reformatScaler))
-    np.savetxt(filename,Best_ConnPoles_MV, delimiter=",")
-    #Best Total Costs Output
-    filename = "Best_Total_Cost_%s_soln.csv" %(str(reformatScaler))
-    np.savetxt(filename,Best_Total_Cost_List, delimiter=",")
-    
-    t1 = time.time()
-    total_time = t1-t0
-    print("The total calculation time is "+str(round(total_time,2))+".")
+                poleclasses, networklines, droplines, connections = ClassifyNetworkPoles(concession, lat_Generation, long_Generation,
+                                    indexes_gen, indexes_Poles_MV_wPOI, group_indexes,
+                                    OnOff_MV, DistancesBWPoles_MV, indexes_excl,
+                                    70, range_limit, width, height, d_EW_between,
+                                    d_NS_between, indexes_conn)
 
-            
-            
-                    
-    
+                BestNetworkCost = NetworkCost(costs, poleclasses, networklines, droplines)
+                ConcessionDetails(poleclasses, networklines, droplines, BestNetworkCost, connections,
+                                  concession)
 
-
-    
+    #             total_reliability_cost_LVMV = sum(reliability_cost_LV) + reliability_cost_MV
+    #
+    #             #print("Terminate")
+    #             #Calculate Costs
+    #             Total_Cost = PenaltiesToCost(total_reliability_cost_LVMV, costs, poleclasses, networklines, droplines)
+    #             #Save Best Solution Based on Cost
+    #             if Total_Cost < Best_Total_Cost and max(ConnPoles_LV[:,1]) < MaxDistancePoleConn:
+    #                 #Save Best Solutions
+    #                 print("Found best solution")
+    #                 BestPoleClasses = poleclasses
+    #                 BestNetworkLines = networklines
+    #                 BestDropLines = droplines
+    #                 Best_Total_Cost = Total_Cost
+    #             print("This iteration's total cost is $"+str(int(Total_Cost))+" and the best total cost is $"+str(Best_Total_Cost)+".")
+    #             print("This iteration's maximum distance between a house and a LV pole is "+str(round(max(ConnPoles_LV[:,1]),2))+" and the allowable distance is "+str(MaxDistancePoleConn)+".")
+    #             temp_time = time.time() - t_temp
+    #             print("This iteration's calculation time is "+str(round(temp_time,2))+"s.")
+    #             print("************************************************************************")
+    #
+    #             #If solution hasn't improved, stop iterations
+    #             Total_Reliability_Cost.append(total_reliability_cost_LVMV)
+    #             Total_Cost_List.append(Total_Cost)
+    #             total_iterations = len(Total_Cost_List)
+    #             if total_iterations > total_repeats_lookback:
+    #                 if min(Total_Cost_List[total_iterations-total_repeats_lookback:total_iterations]) > Best_Total_Cost:
+    #                     #If solution hasn't improved in the last total repeats lookback count exit iterations
+    #                     NoDecrease = 1
+    #
+    #             #add iteration to while loop
+    #             nrep_MV += 1
+    #
+    # BestNetworkCost = NetworkCost(costs, BestPoleClasses, BestNetworkLines, BestDropLines)
+    # ConcessionDetails(BestPoleClasses, BestNetworkLines, BestDropLines, BestNetworkCost, connections, concession)
+    #
+    # t1 = time.time()
+    # total_time = t1-t0
+    # print("The total calculation time is "+str(round(total_time,2))+".")
