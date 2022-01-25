@@ -10,6 +10,15 @@ import matplotlib as plt
 # from IPython.core.debugger import set_trace
 import pdb
 import itertools as it
+import glob
+from constants import SITE_NAME
+
+def get_8760(village_name):
+    filtered_list = glob.glob(f'{village_name}*8760*.xlsx')
+    for f in filtered_list:
+        if village_name in f and '8760' in f:
+            return f
+    return None
 
 def vect_split(vect):
     """ This function splits an 8760 vector into 366 vectors: The first vector has 18 elements, the last vector
@@ -54,6 +63,7 @@ def full_year_energy_calc(a, b,index):
         full_year: ndarray
             full year energy of the area under consideration
     """
+    
     #TODO: remove dependency on a template full year enery, require only 8760 to run the algorithm
     full_year = [] 
     b = vect_split(b)
@@ -75,8 +85,12 @@ def full_year_energy_calc(a, b,index):
     return pd.DataFrame(full_year)
 
 #convert excel data to a pandas dataframe
-template_full_year_energy = pd.read_excel('/home/onepower/Downloads/FullYearEnergy.xlsx')
-_8760 = pd.read_excel('/home/onepower/Downloads/15062021_1640_SEB_8760_C576.xlsx', sheet_name='8760', usecols= 'B', header=0)
+sitename = SITE_NAME
+template_full_year_energy = pd.read_excel('full_year_energy.xlsx')
+# Load Files
+loadfile = get_8760(sitename)
+# print(load_file)
+_8760 = pd.read_excel(loadfile, sheet_name='8760', usecols ='B')
 #print(_8760)
 
 #convert dataframe to numpy array (results in an array of arrays)
