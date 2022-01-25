@@ -13,7 +13,8 @@ import pandas as pd
 import math
 import matplotlib.pyplot as plt
 from full_year_energy import * 
-
+from constants import SITE_NAME
+import glob
 
 
 # from numba import jit
@@ -141,7 +142,7 @@ def operation(Batt_Charge_Limit, smart, PVkW, BattkWh, peakload, LoadKW_MAK, Ful
     loadLeft = np.zeros(hmax)
 
     # "Initialize variables"
-    Propane = 0
+    Propane_kg = 0
     Limit_discharge = BattkWh * Batt_Charge_Limit
     Limit_charge = BattkWh * Batt_Charge_Limit
 
@@ -211,6 +212,7 @@ def operation(Batt_Charge_Limit, smart, PVkW, BattkWh, peakload, LoadKW_MAK, Ful
 
             # Try considering max LoadLeft for the next 12 hours
             loadLeft[h] = max(list(FullYearEnergy[h:h + 6][0])) * 0.75 / 5 * 9
+            #print(pd.DataFrame(loadLeft))
         else:
             loadLeft[h] = 10000 + 2 * BattkWh  # "number much higher than can possibly be stored in battery bank"
             # " forces genset to stay on (not smart) "
@@ -232,7 +234,7 @@ def operation(Batt_Charge_Limit, smart, PVkW, BattkWh, peakload, LoadKW_MAK, Ful
             Fuel_kg = 0
 
         # " Genset "
-        Propane = Propane + Fuel_kg  # "Cumulative genset fuel consumption in kg Propane"
+        Propane_kg = Propane_kg + Fuel_kg  # "Cumulative genset fuel consumption in kg Propane"
 
         # "increment loop variable"
         h += 1
@@ -241,7 +243,7 @@ def operation(Batt_Charge_Limit, smart, PVkW, BattkWh, peakload, LoadKW_MAK, Ful
     # "END OF LOOP"
     # "---------------------------------------------------------------------------------------"
 
-    return Propane, Batt_SOC, LoadkW, P_gen, P_PV, P_batt, P_dump, Limit_charge, Limit_discharge, Batt_kWh_tot
+    return Propane_kg, Batt_SOC, LoadkW, P_gen, P_PV, P_batt, P_dump, Limit_charge, Limit_discharge, Batt_kWh_tot
 
 
 ##=============================================================================================================================
@@ -293,7 +295,14 @@ def PlotPowerFlows(P_PV, P_Batt, P_PG, P_dump, SOC, LoadkW, t1, t2, BattkW, Limi
     plt.savefig(plotname, dpi=600)
     plt.show()
 
-
+##====================================================================
+def get_8760(village_name):
+   filtered_list = glob.glob(f'{village_name}*8760*.xlsx')
+   for f in filtered_list:
+       if village_name in f and '8760' in f:
+           return f
+   return None
+    
 ##=============================================================================
 
 # Plot Load =============================================================
@@ -317,32 +326,38 @@ def PlotLoad(LoadkW, t1, t2):
 ## Tech_total function =========================================================================================================
 def Tech_total(BattkWh_Parametric, PVkW_Parametric):
     # This function calls the previous functions, excluding the plotting function, to solve for the power flows for the year.
-
-    # Load excel files containing LoadKW_MAK, FullYearEnergy, final
-    LoadKW_MAK = pd.read_excel('LoadKW_MAK.xlsx', index_col=None, header=None)
+    sitename = SITE_NAME
+   # Load Files
+    load_file = get_8760(sitename)
+    # print(load_file)
+    load = pd.read_excel(loadfile, sheet_name='8760', usecols='B')
     # TODO: Here
     #FullYearEnergy = pd.read_excel('FullYearEnergy.xlsx', index_col=None, header=None) 
     FullYearEnergy = full_year_energy_calc(day_totals, modified8760, indices)
+    #Test fullyear
+    #print(FullYearEnergy)
     # TODO: Here
-    MSU_TMY = pd.read_excel('MSU_TMY.xlsx')
+    TMY = pd.read_excel(sitename + '_TMY.xlsx')
     # TODO: Here
-    Tech_Parameters = pd.read_excel('uGrid_Input.xlsx', sheet_name='Tech')
+    Tech_Parameters = pd.read_excel(sitename + '_uGrid_Input.xlsx', sheet_name='Tech')
     # TODO: Here
-    Solar_Parameters = pd.read_excel('uGrid_Input.xlsx', sheet_name='Solar')
+    Solar_Parameters = pd.read_excel(sitename + '_uGrid_Input.xlsx', sheet_name='Solar')
     # TODO: Here
+    #print(FullYearEnergy, TMY)
 
     # Input Calculations
-    peakload = max(LoadKW_MAK[0]) * Tech_Parameters['peakload_buffer'][
-        0]  # "maximum power output of the load curve [kW]"
+    #print(load)
+    peakload = max(load['kW']) * Tech_Parameters['peakload_buffer'][0]  # "maximum power output of the load curve [kW]"
     BattkWh = BattkWh_Parametric * peakload  # "[kWh]"
-    loadkWh = sum(LoadKW_MAK[0])
+    loadkWh = sum(load['kW'])
     PVkW = PVkW_Parametric * peakload  # "[kW]"
 
-    Propane, Batt_SOC, LoadkW, P_gen, P_PV, P_batt, P_dump, Limit_charge, Limit_discharge, Batt_kWh_tot = operation(
-        Tech_Parameters['Batt_Charge_Limit'][0], Tech_Parameters['smart'][0], PVkW, BattkWh, peakload, LoadKW_MAK,
-        FullYearEnergy, MSU_TMY, Solar_Parameters, Tech_Parameters['trans_losses'][0])
+    Propane_kg, Batt_SOC, LoadkW, P_gen, P_PV, P_batt, P_dump, Limit_charge, Limit_discharge, Batt_kWh_tot = operation(
+        Tech_Parameters['Batt_Charge_Limit'][0], Tech_Parameters['smart'][0], PVkW, BattkWh, peakload, load,
+        FullYearEnergy, TMY, Solar_Parameters, Tech_Parameters['trans_losses'][0])
+    print(Batt_SOC, LoadkW)
 
-    return Propane, Batt_SOC, LoadkW, P_gen, P_PV, P_batt, P_dump, Limit_charge, Limit_discharge, BattkWh, Batt_kWh_tot, loadkWh, peakload
+    return Propane_kg, Batt_SOC, LoadkW, P_gen, P_PV, P_batt, P_dump, Limit_charge, Limit_discharge, BattkWh, Batt_kWh_tot, loadkWh, peakload
 
 
 ##=============================================================================================================
@@ -358,7 +373,7 @@ if __name__ == "__main__":
     BattkWh_Parametric = 5.5
     PVkW_Parametric = 2.7
 
-    Propane, Batt_SOC, LoadkW, P_gen, P_PV, P_batt, P_dump, Limit_charge, Limit_discharge, BattkW, Batt_kWh_tot, loadkWh, peakload = Tech_total(
+    Propane_kg, Batt_SOC, LoadkW, P_gen, P_PV, P_batt, P_dump, Limit_charge, Limit_discharge, BattkW, Batt_kWh_tot, loadkWh, peakload = Tech_total(
         BattkWh_Parametric, PVkW_Parametric)
 
     t1 = int(24 * 30 * 1)
