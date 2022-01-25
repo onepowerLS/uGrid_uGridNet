@@ -10,6 +10,15 @@ import matplotlib as plt
 # from IPython.core.debugger import set_trace
 import pdb
 import itertools as it
+import glob
+from constants import SITE_NAME
+
+def get_8760(village_name):
+    filtered_list = glob.glob(f'{village_name}*8760*.xlsx')
+    for f in filtered_list:
+        if village_name in f and '8760' in f:
+            return f
+    return None
 
 def vect_split(vect):
     """ This function splits an 8760 vector into 366 vectors: The first vector has 18 elements, the last vector
@@ -54,6 +63,7 @@ def full_year_energy_calc(a, b,index):
         full_year: ndarray
             full year energy of the area under consideration
     """
+    
     #TODO: remove dependency on a template full year enery, require only 8760 to run the algorithm
     full_year = [] 
     b = vect_split(b)
@@ -72,19 +82,23 @@ def full_year_energy_calc(a, b,index):
                 k+=1
         m.append(k)
         k = m[i]+1
-    return full_year
+    return pd.DataFrame(full_year)
 
 #convert excel data to a pandas dataframe
-template_full_year_energy = pd.read_excel('/home/onepower/Downloads/FullYearEnergy.xlsx')
-_8760 = pd.read_excel('/home/onepower/Downloads/02082021_1506_LEB_8760_C077.xlsx', sheet_name='8760', usecols= 'B', header=0)
-print(_8760)
+sitename = SITE_NAME
+template_full_year_energy = pd.read_excel('full_year_energy.xlsx')
+# Load Files
+loadfile = get_8760(sitename)
+# print(load_file)
+_8760 = pd.read_excel(loadfile, sheet_name='8760', usecols ='B')
+#print(_8760)
 
 #convert dataframe to numpy array (results in an array of arrays)
 _8760 = _8760.to_numpy()
-print(_8760)
+#print(_8760)
 
 array = np.delete(template_full_year_energy.to_numpy(),0,1)
-print(array)
+#print(array)
 
 # set all nonzero values in template_full_year_energy to 1 and store the results in a new array
 array1 =[]
@@ -109,7 +123,7 @@ for i in range(len(array1)):
         modified8760.append(array3[i])
     else:
         modified8760.append(0.0)
-print(modified8760)
+#print(modified8760)
 
 # split the modified 8760 using the vect_split function
 split8760 = vect_split(modified8760)
@@ -117,14 +131,14 @@ split8760 = vect_split(modified8760)
 day_totals =[]
 for i in range(len(split8760)):
     day_totals.append(max(np.cumsum(split8760[i])))
-print(day_totals)
+#print(day_totals)
 
 indices = []
 for i in range(366):
     indices.append(len(split8760[i]))
-print(indices)
+#print(indices)
 
-full_year_energy_calc(day_totals, modified8760, indices)
+#print(full_year_energy_calc(day_totals, modified8760, indices))
 
 
 
