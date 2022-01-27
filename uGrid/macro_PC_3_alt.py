@@ -27,6 +27,7 @@ from technical_tools_PC_3_alt import Tech_total
 from economic_tools_PC_3 import Econ_total
 import time
 from constants import SITE_NAME
+from openpyxl import Workbook, load_workbook
 
 def get_8760(village_name):
     filtered_list = glob.glob(f'{village_name}*8760*.xlsx')
@@ -143,7 +144,7 @@ if __name__ == "__main__":
             #calculate technical parameters
             Propane_ec[m,iteration], Batt_SOC, LoadkW, P_gen, P_PV, P_batt, P_dump,Limit_charge, Limit_discharge, BattkW, Batt_kWh_tot_ec[m,iteration],loadkWh,peakload = Tech_total(Parameters[0,m,iteration],Parameters[1,m,iteration])
             #don't need to save Gt_panel, final, Batt_SOC, and Charge these are used to validate program
-            LoanPrincipal, year, Cost, Revenue, CashonHand, Balance, M, O, tariff[m,iteration], Batt_life_yrs[m,iteration], Cost_EPC, Cost_Dist, Cost_BOS, Cost_bank, C1_LPG, Cost_inv, Cost_panels, Cost_EPC_tracker, C1_pv= Econ_total(Propane_ec[m,iteration],Parameters[1,m,iteration]*peakload,Parameters[0,m,iteration]*peakload,Batt_kWh_tot_ec[m,iteration],peakload,loadkWh)
+            LoanPrincipal, year, Cost, Revenue, CashonHand, Balance, M, O, tariff[m,iteration], Batt_life_yrs[m,iteration], Cost_EPC, Cost_Dist, Cost_BOS, Cost_bank, C1_LPG, Cost_inv, Cost_panels, Cost_EPC_tracker, Cost_labour, C1_pv, PVkW= Econ_total(Propane_ec[m,iteration],Parameters[1,m,iteration]*peakload,Parameters[0,m,iteration]*peakload,Batt_kWh_tot_ec[m,iteration],peakload,loadkWh)
             #order of parameters: batt, PV, CSP, ORC, TES_ratio
         
    
@@ -298,7 +299,41 @@ if __name__ == "__main__":
     #plt.savefig(filename_Plot_BatteryDispatch)
 
 
+    #write these values in the subtotals column, H
+
+    wb = load_workbook('RAL_uGrid_Output_alt_plot_test.xlsx')
+    ws = wb["Sizing_Costing"]
     
+    ws['H2'] = Cost_panels[0]
+    ws['H3'] = Cost_bank[0]
+    ws['H4'] = Cost_inv[0]
+    ws['H5'] = Cost_EPC_tracker[0]
+    ws['H6'] = C1_LPG[0]
+    ws['H7'] = Cost_BOS[0]
+    ws['H8'] = Cost_Dist[0]
+    ws['H9'] = Cost_EPC[0]*10 
+    ws['H10'] = Cost_EPC[0]
+    ws['H11']= Cost_labour
+    ws['H12'] = C1_pv[0]
+    ws['H13'] = Total_Cost
+    
+    ws['E2'] = PVkW
+    ws['E3'] = BattkW
+    ws['E4'] = peakload
+    ws['E5'] = PVkW
+    ws['E6'] = peakload
+    ws['E7'] = PVkW
+    ws['E8'] = ' '
+    ws['E10'] = ' '
+    ws['E11']= ' '
+    ws['E12'] = ' ' 
+    ws['E13'] = ' '
+    
+    wb.save('RAL_uGrid_Output_alt_plot_test.xlsx')
+    print("File appended.")
+
+  
+
     
 
 

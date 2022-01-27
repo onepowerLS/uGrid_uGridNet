@@ -142,6 +142,7 @@ def Econ_total(propane_kg, PVkW,BattKWh,Batt_kWh_tot,peakload,loadkWh):
     #print('Cost EPc '+str(Cost_EPC),'Cost Distribution'+ str(Cost_Dist),'Cost BOS' +str(Cost_BOS),'Cost bank' +str(Cost_bank),'Cost Genset' + str(C1_LPG),'Cost inverter'+ str(Cost_inv),'Cost panels'+ str(Cost_panels),'Cost tracker'+ str(Cost_EPC_tracker))
     C1_pv = Cost_EPC + Cost_Dist + Cost_BOS + Cost_bank + C1_LPG + Cost_inv + Cost_panels + Cost_EPC_tracker
     #print('C1_pv is :' + str(C1_pv))
+    Cost_labour = Econ_Parameters['Cost_EPC_Labor_Dist'][0]
     
     LEC = 0.1 #this is a starting point for LEC. This could potentially be done without a hill-climb and be directly solved
 
@@ -149,7 +150,7 @@ def Econ_total(propane_kg, PVkW,BattKWh,Batt_kWh_tot,peakload,loadkWh):
 
     #print "Tariff is " + str(tariff)
 
-    return LoanPrincipal, year, Cost, Revenue, CashonHand, Balance, M, O, tariff, Batt_life_yrs, Cost_EPC, Cost_Dist, Cost_BOS, Cost_bank, C1_LPG, Cost_inv, Cost_panels, Cost_EPC_tracker, C1_pv     
+    return LoanPrincipal, year, Cost, Revenue, CashonHand, Balance, M, O, tariff, Batt_life_yrs, Cost_EPC, Cost_Dist, Cost_BOS, Cost_bank, C1_LPG, Cost_inv, Cost_panels, Cost_EPC_tracker, Cost_labour, C1_pv, PVkW    
     
 ##===============================================================================================
     

@@ -27,6 +27,7 @@ from technical_tools_PC_3_alt import Tech_total
 from economic_tools_PC_3 import Econ_total
 import time
 from constants import SITE_NAME
+from openpyxl import Workbook, load_workbook
 
 def get_8760(village_name):
     filtered_list = glob.glob(f'{village_name}*8760*.xlsx')
@@ -143,7 +144,7 @@ if __name__ == "__main__":
             #calculate technical parameters
             Propane_ec[m,iteration], Batt_SOC, LoadkW, P_gen, P_PV, P_batt, P_dump,Limit_charge, Limit_discharge, BattkW, Batt_kWh_tot_ec[m,iteration],loadkWh,peakload = Tech_total(Parameters[0,m,iteration],Parameters[1,m,iteration])
             #don't need to save Gt_panel, final, Batt_SOC, and Charge these are used to validate program
-            LoanPrincipal, year, Cost, Revenue, CashonHand, Balance, M, O, tariff[m,iteration], Batt_life_yrs[m,iteration] = Econ_total(Propane_ec[m,iteration],Parameters[1,m,iteration]*peakload,Parameters[0,m,iteration]*peakload,Batt_kWh_tot_ec[m,iteration],peakload,loadkWh)
+            LoanPrincipal, year, Cost, Revenue, CashonHand, Balance, M, O, tariff[m,iteration], Batt_life_yrs[m,iteration], Cost_EPC, Cost_Dist, Cost_BOS, Cost_bank, C1_LPG, Cost_inv, Cost_panels, Cost_EPC_tracker, Cost_labour, C1_pv, PVkW= Econ_total(Propane_ec[m,iteration],Parameters[1,m,iteration]*peakload,Parameters[0,m,iteration]*peakload,Batt_kWh_tot_ec[m,iteration],peakload,loadkWh)
             #order of parameters: batt, PV, CSP, ORC, TES_ratio
         
    
@@ -151,6 +152,9 @@ if __name__ == "__main__":
             print("This individual's yearly propane and tariff is: " +str(Propane_ec[m,iteration]) + ", " +str(tariff[m,iteration]))
             #print("peakload = " +str(peakload))
             print("cost = "+str(sum(Cost)))
+            #C1_pv = Cost_panels + Cost_BOS + Cost_EPC + Cost_Dev
+            print('Cost EPc '+str(Cost_EPC),'Cost Distribution'+ str(Cost_Dist),'Cost BOS' +str(Cost_BOS),'Cost bank' +str(Cost_bank),'Cost Genset' + str(C1_LPG),'Cost inverter'+ str(Cost_inv),'Cost panels'+ str(Cost_panels),'Cost tracker'+ str(Cost_EPC_tracker))
+            print('C1_pv is :' + str(C1_pv))
             
             #Find generation best
             if tariff[m,iteration] < gB_change_tariff_plus[iteration] or (tariff[m,iteration] < gB_change_tariff[iteration] and Propane_ec[m,0] < gB_change_propane[iteration]):
@@ -158,7 +162,7 @@ if __name__ == "__main__":
                 gB_change_tariff_plus[iteration] = gB_change_tariff[iteration]*(1+X_tariff_multiplier)
                 gB_change_propane[iteration] = np.copy(Propane_ec[m,iteration])
                 gB_change_parameters[:,iteration] = np.copy(Parameters[:,m,iteration])
-                gB_change_cost[iteration] = np.copy(Cost[iteration])
+                #gB_change_cost[iteration] = np.copy(Cost[iteration])
                 #print(gB_change_cost[iteration])
             #Find global best (removed gB_tariff_plus buffer for true global best: tariff[m,iteration] < gB_tariff_plus or)
             if tariff[m,iteration] < gB_tariff_plus or (tariff[m,iteration] < gB_tariff and Propane_ec[m,0] < gB_propane):
@@ -230,6 +234,7 @@ if __name__ == "__main__":
         #Print generation results
         print("Global Best Tariff "+ str(gB_tariff))
         print("Best Tariff in Generation " + str(gB_change_tariff[iteration]))
+        print("Propane meeting best tarrif " + str(gB_change_propane[iteration]) + str(gB_propane))
         print("Total Cost of Generation " + str(sum(gB_Cost)))
         iteration += 1
 
@@ -247,16 +252,26 @@ if __name__ == "__main__":
 
     #gB_optimization_output_var = np.zeros((4,maxGen-1))
     gB_optimization_output_var = {'BattkW':gB_change_parameters[0,:],'PVkW':gB_change_parameters[1,:], 'Propane':gB_change_propane,'Tariff':gB_change_tariff, 'Cost':sum(gB_Cost)}
-
+    #gB_optimization_costs_breakdown = {'Propane':1.3*gB_change_propane}
+    #gB_optimization_costs_breakdown = {'Propane':gB_change_propane, 'PV':gB_propane, 'Battery':, 'Inverter':, 'Tracker':, 'Genset':, 'Reticulation':,'EPC':, 'BOS':, 'Labour':, }
     gB_recordRecord = pd.DataFrame({'recordRecord':recordRecord})
     #gB_optimization_output_var = np.transpose(np.concatenate((gB_change_parameters[0,:],gB_change_parameters[1,:], gB_change_propane,gB_change_tariff), axis=1))
     gB_optimization_output =pd.DataFrame(gB_optimization_output_var)#, columns =['BattkW','PVkW','Propane','Tariff'])            
     #print(gB_optimization_output)
+    #gB_optimization_costs = pd.DataFrame(gB_optimization_costs_breakdown)
 
     #Print Results to Excel (Optimization and Solution Variables)
-    filename_xlsx = sitename + "_uGrid_Output_"+PSO_Parameters['output_name'][0]+".xlsx"
-    #TODO: Here
+    gB_Size_costing_parameters = pd.read_excel(sitename + '_uGrid_Input.xlsx', sheet_name = 'Sizing_Costing')
+    #del gB_Size_costing_parameters['Subtotal', 'QTY']
+    #print(gB_Size_costing_parameters)
 
+    filename_xlsx = sitename + "_uGrid_Output_"+PSO_Parameters['output_name'][0]+".xlsx"
+    #list = [Cost_EPC, Cost_Dist, Cost_BOS, Cost_bank, C1_LPG, Cost_inv, Cost_panels, Cost_EPC_tracker, C1_pv]
+    #gB_cost_parameters = pd.DataFrame(list, columns = ['Subtotal'])
+    #print(gB_cost_parameters)
+    #gB_Size_costing_parameters.append(gB_cost_parameters)
+    
+    #TODO: Here
     writer = pd.ExcelWriter(filename_xlsx, engine='xlsxwriter')
 
     # Convert the dataframe to an XlsxWriter Excel object.
@@ -264,6 +279,13 @@ if __name__ == "__main__":
     gB_optimization_output.to_excel(writer, sheet_name='Optimization Output')
     gB_total_var.to_excel(writer, sheet_name='Other Solution Output')
     gB_recordRecord.to_excel(writer, sheet_name='Record History')
+    #gB_optimization_costs.to_excel(writer,sheet_name='Costs_BreakDown')
+    gB_Size_costing_parameters.to_excel(writer,sheet_name='Sizing_Costing')
+    
+
+
+
+
     # Close the Pandas Excel writer and output the Excel file.
     writer.save()
 
@@ -277,7 +299,41 @@ if __name__ == "__main__":
     #plt.savefig(filename_Plot_BatteryDispatch)
 
 
+    #write these values in the subtotals column, H
+
+    wb = load_workbook('RAL_uGrid_Output_alt_plot_test.xlsx')
+    ws = wb["Sizing_Costing"]
     
+    ws['H2'] = Cost_panels[0]
+    ws['H3'] = Cost_bank[0]
+    ws['H4'] = Cost_inv[0]
+    ws['H5'] = Cost_EPC_tracker[0]
+    ws['H6'] = C1_LPG[0]
+    ws['H7'] = Cost_BOS[0]
+    ws['H8'] = Cost_Dist[0]
+    ws['H9'] = Cost_EPC[0]*10 
+    ws['H10'] = Cost_EPC[0]
+    ws['H11']= Cost_labour
+    ws['H12'] = C1_pv[0]
+    ws['H13'] = Total_Cost
+    
+    ws['E2'] = PVkW
+    ws['E3'] = BattkW
+    ws['E4'] = peakload
+    ws['E5'] = PVkW
+    ws['E6'] = peakload
+    ws['E7'] = PVkW
+    ws['E8'] = ' '
+    ws['E10'] = ' '
+    ws['E11']= ' '
+    ws['E12'] = ' ' 
+    ws['E13'] = ' '
+    
+    wb.save('RAL_uGrid_Output_alt_plot_test.xlsx')
+    print("File appended.")
+
+  
+
     
 
 

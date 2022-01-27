@@ -142,7 +142,7 @@ def operation(Batt_Charge_Limit, smart, PVkW, BattkWh, peakload, LoadKW_MAK, Ful
     loadLeft = np.zeros(hmax)
 
     # "Initialize variables"
-    Propane = 0
+    Propane_kg = 0
     Limit_discharge = BattkWh * Batt_Charge_Limit
     Limit_charge = BattkWh * Batt_Charge_Limit
 
@@ -234,7 +234,7 @@ def operation(Batt_Charge_Limit, smart, PVkW, BattkWh, peakload, LoadKW_MAK, Ful
             Fuel_kg = 0
 
         # " Genset "
-        Propane = Propane + Fuel_kg  # "Cumulative genset fuel consumption in kg Propane"
+        Propane_kg = Propane_kg + Fuel_kg  # "Cumulative genset fuel consumption in kg Propane"
 
         # "increment loop variable"
         h += 1
@@ -243,7 +243,7 @@ def operation(Batt_Charge_Limit, smart, PVkW, BattkWh, peakload, LoadKW_MAK, Ful
     # "END OF LOOP"
     # "---------------------------------------------------------------------------------------"
 
-    return Propane, Batt_SOC, LoadkW, P_gen, P_PV, P_batt, P_dump, Limit_charge, Limit_discharge, Batt_kWh_tot
+    return Propane_kg, Batt_SOC, LoadkW, P_gen, P_PV, P_batt, P_dump, Limit_charge, Limit_discharge, Batt_kWh_tot
 
 
 ##=============================================================================================================================
@@ -352,12 +352,12 @@ def Tech_total(BattkWh_Parametric, PVkW_Parametric):
     loadkWh = sum(load['kW'])
     PVkW = PVkW_Parametric * peakload  # "[kW]"
 
-    Propane, Batt_SOC, LoadkW, P_gen, P_PV, P_batt, P_dump, Limit_charge, Limit_discharge, Batt_kWh_tot = operation(
+    Propane_kg, Batt_SOC, LoadkW, P_gen, P_PV, P_batt, P_dump, Limit_charge, Limit_discharge, Batt_kWh_tot = operation(
         Tech_Parameters['Batt_Charge_Limit'][0], Tech_Parameters['smart'][0], PVkW, BattkWh, peakload, load,
         FullYearEnergy, TMY, Solar_Parameters, Tech_Parameters['trans_losses'][0])
     print(Batt_SOC, LoadkW)
 
-    return Propane, Batt_SOC, LoadkW, P_gen, P_PV, P_batt, P_dump, Limit_charge, Limit_discharge, BattkWh, Batt_kWh_tot, loadkWh, peakload
+    return Propane_kg, Batt_SOC, LoadkW, P_gen, P_PV, P_batt, P_dump, Limit_charge, Limit_discharge, BattkWh, Batt_kWh_tot, loadkWh, peakload
 
 
 ##=============================================================================================================
@@ -373,7 +373,7 @@ if __name__ == "__main__":
     BattkWh_Parametric = 5.5
     PVkW_Parametric = 2.7
 
-    Propane, Batt_SOC, LoadkW, P_gen, P_PV, P_batt, P_dump, Limit_charge, Limit_discharge, BattkW, Batt_kWh_tot, loadkWh, peakload = Tech_total(
+    Propane_kg, Batt_SOC, LoadkW, P_gen, P_PV, P_batt, P_dump, Limit_charge, Limit_discharge, BattkW, Batt_kWh_tot, loadkWh, peakload = Tech_total(
         BattkWh_Parametric, PVkW_Parametric)
 
     t1 = int(24 * 30 * 1)
