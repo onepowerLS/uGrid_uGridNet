@@ -118,7 +118,7 @@ def Econ_total(propane_kg, PVkW,BattKWh,Batt_kWh_tot,peakload,loadkWh):
     Cost_MPesa = Econ_Parameters['Cost_Mpesa_per_kWLoad'][0]*peakload  #"Estimate for merchant services with vodacom"
     Cost_inv=peakload*Size_costing_parameters.iloc[2] #"[$/kW peak]"
     Cost_EPC_tracker=Size_costing_parameters.iloc[3]*PVkW
-    Cost_BOS = Size_costing_parameters.iloc[5]*peakload 
+    Cost_BOS = Size_costing_parameters.iloc[5]*PVkW 
     Cost_reticulation = Size_costing_parameters.iloc[6]
  
     #"Cost aggregators"

@@ -113,8 +113,10 @@ if __name__ == "__main__":
     gB_change_tariff = np.ones(maxGen)*999
     gB_change_tariff_plus = gB_change_tariff*(1+X_tariff_multiplier)
     gB_change_parameters = np.zeros((2,maxGen))
+    #print(gB_change_parameters)
     #TODO: add gB_change_cost
     gB_change_cost = np.ones(maxGen)
+    gB_change_capex = np.ones((7,maxGen))
     #print(gB_tariff, gB_Cost,gB_change_tariff, gB_change_cost)
     #Personal Best (best position for each particle)
     pB_propane = np.ones(numInd)*999
@@ -143,6 +145,7 @@ if __name__ == "__main__":
         for m in range(numInd):            
             #calculate technical parameters
             Propane_ec[m,iteration], Batt_SOC, LoadkW, P_gen, P_PV, P_batt, P_dump,Limit_charge, Limit_discharge, BattkW, Batt_kWh_tot_ec[m,iteration],loadkWh,peakload = Tech_total(Parameters[0,m,iteration],Parameters[1,m,iteration])
+            print('Battery KW: ' + str(BattkW))
             #don't need to save Gt_panel, final, Batt_SOC, and Charge these are used to validate program
             LoanPrincipal, year, Cost, Revenue, CashonHand, Balance, M, O, tariff[m,iteration], Batt_life_yrs[m,iteration], Cost_EPC, Cost_Dist, Cost_BOS, Cost_bank, C1_LPG, Cost_inv, Cost_panels, Cost_EPC_tracker, Cost_labour, C1_pv, PVkW= Econ_total(Propane_ec[m,iteration],Parameters[1,m,iteration]*peakload,Parameters[0,m,iteration]*peakload,Batt_kWh_tot_ec[m,iteration],peakload,loadkWh)
             #order of parameters: batt, PV, CSP, ORC, TES_ratio
@@ -153,7 +156,7 @@ if __name__ == "__main__":
             #print("peakload = " +str(peakload))
             print("cost = "+str(sum(Cost)))
             #C1_pv = Cost_panels + Cost_BOS + Cost_EPC + Cost_Dev
-            print('Cost EPc '+str(Cost_EPC),'Cost Distribution'+ str(Cost_Dist),'Cost BOS' +str(Cost_BOS),'Cost bank' +str(Cost_bank),'Cost Genset' + str(C1_LPG),'Cost inverter'+ str(Cost_inv),'Cost panels'+ str(Cost_panels),'Cost tracker'+ str(Cost_EPC_tracker))
+            print('Cost EPc '+str(Cost_EPC),'Cost Distribution'+ str(Cost_Dist),'Cost BOS' +str(Cost_BOS),'Cost bank' +str(Cost_bank),'Cost Genset' + str(C1_LPG),'Cost inverter'+ str(Cost_inv),'Cost panels'+ str(Cost_panels),'Cost tracker'+ str(Cost_EPC_tracker), 'PVkW ;' + str(PVkW))
             print('C1_pv is :' + str(C1_pv))
             
             #Find generation best
@@ -162,8 +165,9 @@ if __name__ == "__main__":
                 gB_change_tariff_plus[iteration] = gB_change_tariff[iteration]*(1+X_tariff_multiplier)
                 gB_change_propane[iteration] = np.copy(Propane_ec[m,iteration])
                 gB_change_parameters[:,iteration] = np.copy(Parameters[:,m,iteration])
-                #gB_change_cost[iteration] = np.copy(Cost[iteration])
-                #print(gB_change_cost[iteration])
+                gB_change_cost[iteration] = np.copy(Cost[iteration])
+                
+                #print(gB_change_cost[iteration], )
             #Find global best (removed gB_tariff_plus buffer for true global best: tariff[m,iteration] < gB_tariff_plus or)
             if tariff[m,iteration] < gB_tariff_plus or (tariff[m,iteration] < gB_tariff and Propane_ec[m,0] < gB_propane):
                 gB_tariff = np.copy(tariff[m,iteration])
@@ -172,6 +176,7 @@ if __name__ == "__main__":
                 gB_parameters = np.copy(Parameters[:,m,iteration])
                 #Saving plotting variables
                 data_plot_variables = np.column_stack((Batt_SOC[0:8760], LoadkW, P_gen, P_PV, P_batt, P_dump))
+                #print(data_plot_variables)
                 #data_plot_variables =[Batt_SOC, LoadkW, P_gen, P_PV, P_batt, P_dump]
                 gB_plot_variables = pd.DataFrame(data_plot_variables,columns=['Batt_SOC', 'LoadkW', 'P_gen', 'P_PV', 'P_batt', 'P_dump'])
                 gB_Cost = np.copy(Cost)
@@ -251,6 +256,22 @@ if __name__ == "__main__":
     print(gB_total_var)
 
     #gB_optimization_output_var = np.zeros((4,maxGen-1))
+    
+    #optimum capex breakdown
+    Size_costing_parameters = pd.read_excel(sitename + '_uGrid_Input.xlsx', sheet_name = 'Sizing_Costing', usecols='F')
+    Cost_panels_opt_array = gB_change_parameters[1,:]*peakload*Size_costing_parameters.iloc[0].to_numpy()
+    Cost_bank_opt_array = gB_change_parameters[0,:]*peakload*Size_costing_parameters.iloc[1].to_numpy()
+    Cost_inv_opt_array = peakload*Size_costing_parameters.iloc[2].to_numpy()
+    Cost_EPC_tracker_opt_array = gB_change_parameters[1,:]*peakload*Size_costing_parameters.iloc[3].to_numpy()
+    C1_LPG_opt_array = peakload*Size_costing_parameters.iloc[4].to_numpy()
+    Cost_BOS_opt_array = gB_change_parameters[1,:]*peakload*Size_costing_parameters.iloc[5].to_numpy()
+    print(Cost_panels_opt_array,Cost_bank_opt_array, Cost_inv_opt_array, Cost_EPC_tracker_opt_array, C1_LPG_opt_array,Cost_BOS_opt_array)
+    print("Optimal cost panels" +str(Cost_panels_opt_array[-2]),"Optimal cost Panels" +str(Cost_bank_opt_array[-2]), "Optimal cost Inverter" +str(Cost_inv_opt_array[-1]), "Optimal cost Tracker" +str(Cost_EPC_tracker_opt_array[-2]), "Optimal cost GENSET" +str(C1_LPG_opt_array[-1]),"Optimal cost BOS" +str(Cost_BOS_opt_array[-2]))
+    #Cost_bank[iteration],
+    #C1_LPG[iteration],
+    #Cost_inv[iteration],
+    #Cost_EPC_opt[iteration],
+    #Cost_EPC_tracker_opt =
     gB_optimization_output_var = {'BattkW':gB_change_parameters[0,:],'PVkW':gB_change_parameters[1,:], 'Propane':gB_change_propane,'Tariff':gB_change_tariff, 'Cost':sum(gB_Cost)}
     #gB_optimization_costs_breakdown = {'Propane':1.3*gB_change_propane}
     #gB_optimization_costs_breakdown = {'Propane':gB_change_propane, 'PV':gB_propane, 'Battery':, 'Inverter':, 'Tracker':, 'Genset':, 'Reticulation':,'EPC':, 'BOS':, 'Labour':, }
