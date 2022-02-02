@@ -26,6 +26,7 @@ import pandas as pd
 from technical_tools_PC_3_alt import Tech_total
 from economic_tools_PC_3 import Econ_total
 import time
+import datetime as dt
 from constants import SITE_NAME
 from openpyxl import Workbook, load_workbook
 
@@ -73,6 +74,12 @@ if __name__ == "__main__":
     Parameters = np.zeros((2,numInd,maxGen)) #this is the result for each parameter, for each month, for each individual
     Propane_ec = np.zeros((numInd,maxGen))
     Batt_kWh_tot_ec = np.zeros((numInd,maxGen))
+
+    # Capex variables
+    bank_opt = [] 
+    panels_opt = []
+    tracker_opt = []
+    BOS_opt = []
     
     #Create random initial guesses for Parameters
     for i in range(2):
@@ -266,12 +273,22 @@ if __name__ == "__main__":
     C1_LPG_opt_array = peakload*Size_costing_parameters.iloc[4].to_numpy()
     Cost_BOS_opt_array = gB_change_parameters[1,:]*peakload*Size_costing_parameters.iloc[5].to_numpy()
     print(Cost_panels_opt_array,Cost_bank_opt_array, Cost_inv_opt_array, Cost_EPC_tracker_opt_array, C1_LPG_opt_array,Cost_BOS_opt_array)
-    print("Optimal cost panels" +str(Cost_panels_opt_array[-2]),"Optimal cost Panels" +str(Cost_bank_opt_array[-2]), "Optimal cost Inverter" +str(Cost_inv_opt_array[-1]), "Optimal cost Tracker" +str(Cost_EPC_tracker_opt_array[-2]), "Optimal cost GENSET" +str(C1_LPG_opt_array[-1]),"Optimal cost BOS" +str(Cost_BOS_opt_array[-2]))
+
+    for n in range(len(Cost_panels_opt_array)):
+       
+
+        if Cost_panels_opt_array[n]>0.0:
+            #print("Optimal cost panels" +str(Cost_panels_opt_array[n]),"Optimal cost Panels" +str(Cost_bank_opt_array[n]), "Optimal cost Inverter" +str(Cost_inv_opt_array[n]), "Optimal cost Tracker" +str(Cost_EPC_tracker_opt_array[n]), "Optimal cost GENSET" +str(C1_LPG_opt_array[n]),"Optimal cost BOS" +str(Cost_BOS_opt_array[n]))
+            panels_opt.append(Cost_panels_opt_array[n])
+            bank_opt.append(Cost_bank_opt_array[n])
+            tracker_opt.append(Cost_EPC_tracker_opt_array[n])
+            BOS_opt.append(Cost_BOS_opt_array[n])
+    print("Optimal cost panels" +str(panels_opt[-1]),"Optimal cost Panels" +str(bank_opt[-1]), "Optimal cost Inverter" +str(Cost_inv_opt_array[-1]), "Optimal cost Tracker" +str(tracker_opt[-1]), "Optimal cost GENSET" +str(C1_LPG_opt_array[-1]),"Optimal cost BOS" +str(BOS_opt[-1]))
     #Cost_bank[iteration],
     #C1_LPG[iteration],
     #Cost_inv[iteration],
     #Cost_EPC_opt[iteration],
-    #Cost_EPC_tracker_opt =
+    #Cost_EPC_tracker_opt 
     gB_optimization_output_var = {'BattkW':gB_change_parameters[0,:],'PVkW':gB_change_parameters[1,:], 'Propane':gB_change_propane,'Tariff':gB_change_tariff, 'Cost':sum(gB_Cost)}
     #gB_optimization_costs_breakdown = {'Propane':1.3*gB_change_propane}
     #gB_optimization_costs_breakdown = {'Propane':gB_change_propane, 'PV':gB_propane, 'Battery':, 'Inverter':, 'Tracker':, 'Genset':, 'Reticulation':,'EPC':, 'BOS':, 'Labour':, }
@@ -321,36 +338,50 @@ if __name__ == "__main__":
 
 
     #write these values in the subtotals column, H
-
-    wb = load_workbook('RAL_uGrid_Output_alt_plot_test.xlsx')
+    simdate = dt.datetime.today()
+    add0 = lambda x: '0'+str(x) if x < 10 else str(x)
+    wb = load_workbook('RAL_uGrid_Output_alt.xlsx')
     ws = wb["Sizing_Costing"]
     
-    ws['H2'] = Cost_panels[0]
-    ws['H3'] = Cost_bank[0]
-    ws['H4'] = Cost_inv[0]
-    ws['H5'] = Cost_EPC_tracker[0]
-    ws['H6'] = C1_LPG[0]
-    ws['H7'] = Cost_BOS[0]
+    ws['H2'] = panels_opt[-1]
+    ws['H3'] = bank_opt[-1]
+    ws['H4'] = Cost_inv[-1]
+    ws['H5'] = tracker_opt[-1]
+    ws['H6'] = C1_LPG[-1]
+    ws['H7'] = BOS_opt[-1]
     ws['H8'] = Cost_Dist[0]
     ws['H9'] = Cost_EPC[0]*10 
     ws['H10'] = Cost_EPC[0]
     ws['H11']= Cost_labour
     ws['H12'] = C1_pv[0]
     ws['H13'] = Total_Cost
+
+    gB_change_parameters_panels = []
+    gB_change_parameters_bank =[]
+
+    for i in range(len(gB_change_parameters[1,:])):
+        if gB_change_parameters[1][i]>0.0:
+            gB_change_parameters_panels.append(gB_change_parameters[1][i])
+            gB_change_parameters_bank.append(gB_change_parameters[0][i])
     
-    ws['E2'] = PVkW
-    ws['E3'] = BattkW
+    print(gB_change_parameters_panels,gB_change_parameters_bank)
+
+    ws['E2'] = gB_change_parameters_panels[-1]*peakload
+    ws['E3'] = gB_change_parameters_bank[-1]*peakload
     ws['E4'] = peakload
-    ws['E5'] = PVkW
+    ws['E5'] = gB_change_parameters_panels[-1]*peakload
     ws['E6'] = peakload
-    ws['E7'] = PVkW
+    ws['E7'] = gB_change_parameters_panels[-1]*peakload
     ws['E8'] = ' '
     ws['E10'] = ' '
     ws['E11']= ' '
     ws['E12'] = ' ' 
     ws['E13'] = ' '
+
+    wb
     
-    wb.save('RAL_uGrid_Output_alt_plot_test.xlsx')
+    wb.save('RAL_uGrid_Output_' + str(simdate.year) + add0(simdate.month) + add0(simdate.day) + \
+        '_' + add0(simdate.hour) + add0(simdate.minute) + '.xlsx')
     print("File appended.")
 
   
