@@ -24,6 +24,10 @@ convert_from_path, PIL, time, networkx, shapely, openpyxl, geopandas and matplot
 
 - Matthew Orosz (mso@mit.edu - Massachusetts Institute of Technology, US)
 
+## Contributors
+
+- Thabo Monoto (tgemmonoto@gmail.com -OnePower Africa, Lesotho)
+
 
 ## License
 
