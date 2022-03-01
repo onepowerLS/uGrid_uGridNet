@@ -1,3 +1,10 @@
+"""
+Full Year Energy Calculator
+
+This contains functions and algorithms to calculate battery energy demand for each hour of each day of the year when solar PVs are not expected to be generating any electricity (i.e, overning demand). This is commonly known as the full year energy demand. 
+
+@author: Thabo Monoto
+"""
 
 import sys
 # get_ipython().system('$sys.executable -m pip install numpy pandas matplotlib seaborn requests mat4py openpyxl ')
@@ -20,7 +27,7 @@ def get_8760(village_name):
             return f
     return None
 
-def vect_split(vect):
+def split_vector(vect):
     """ This function splits an 8760 vector into 366 vectors: The first vector has 18 elements, the last vector
         has 6 elements, and the rest have 24 elements. 
         
@@ -85,20 +92,19 @@ def full_year_energy_calc(a, b,index):
     return pd.DataFrame(full_year)
 
 #convert excel data to a pandas dataframe
+#def data_proc
 sitename = SITE_NAME
 template_full_year_energy = pd.read_excel('full_year_energy.xlsx')
 # Load Files
 loadfile = get_8760(sitename)
 # print(load_file)
 _8760 = pd.read_excel(loadfile, sheet_name='8760', usecols ='B')
-#print(_8760)
 
 #convert dataframe to numpy array (results in an array of arrays)
 _8760 = _8760.to_numpy()
-#print(_8760)
+
 
 array = np.delete(template_full_year_energy.to_numpy(),0,1)
-#print(array)
 
 # set all nonzero values in template_full_year_energy to 1 and store the results in a new array
 array1 =[]
@@ -108,10 +114,9 @@ for i in range(len(array)):
     else:
         array[i][0] = 0
     np.array(array1.append(array[i][0]))
-# 
+    
 array3 =[]
 for i in range(len(_8760)):
-    #array3.append(array2[i][0])
     np.array(array3.append(_8760[i][0]))
 
 
@@ -123,23 +128,17 @@ for i in range(len(array1)):
         modified8760.append(array3[i])
     else:
         modified8760.append(0.0)
-#print(modified8760)
 
 # split the modified 8760 using the vect_split function
-split8760 = vect_split(modified8760)
-#print(len(array6[0]))
+split_8760 = split_vector(modified8760)
+
 day_totals =[]
-for i in range(len(split8760)):
-    day_totals.append(max(np.cumsum(split8760[i])))
-#print(day_totals)
+for i in range(len(split_8760)):
+    day_totals.append(max(np.cumsum(split8760[i]))
 
 indices = []
 for i in range(366):
     indices.append(len(split8760[i]))
-#print(indices)
-
-#print(full_year_energy_calc(day_totals, modified8760, indices))
-
 
 
 
