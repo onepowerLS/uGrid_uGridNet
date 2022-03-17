@@ -363,7 +363,7 @@ def CollectVillageData(site_name, reformatScaler=1, exclusionBuffer=2, max_d = 4
     # Load Files
     load_file = get_8760(site_name)
     Load = pd.read_excel(load_file, sheet_name='8760')
-    PeakLoad = Load.kW.values.max()/2
+    PeakLoad = Load.kW.values.max()
 
     # Import kml pdf file (of exclusions) and convert to jpg
     pages = convert_from_path(site_name + '_exclusions.pdf', 500)
@@ -1404,7 +1404,7 @@ def VoltageDrop(cable_type, char_length, current, voltage, max_drop_volt):
             else:
                 vdrop.append("High V-Drop")
                 #print(vdrop)
-    print(vdrop)
+    print(vd*230, (230 - vd*230), vd ,max_drop_volt)
     return vdrop
 #==============================================================================
 
