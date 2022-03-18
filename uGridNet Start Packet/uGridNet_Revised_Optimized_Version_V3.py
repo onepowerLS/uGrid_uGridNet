@@ -336,9 +336,9 @@ def CollectVillageData(site_name, reformatScaler=1, exclusionBuffer=2, max_d = 4
     Exclusion_nodes = pd.read_excel(site_name + '_exclusions.xlsx', sheet_name='exclusions')
     
     # Plot Connections
-    fig, ax = plt.subplots(dpi=150)
-    ax.scatter(Connect_nodes.Longitude.values, Connect_nodes.Latitude.values)
-    plt.show()
+    #fig, ax = plt.subplots(dpi=150)
+    #ax.scatter(Connect_nodes.Longitude.values, Connect_nodes.Latitude.values)
+    #plt.show()
     
 
     # Identify gps coordinate min and max to determine coordinates of edges of jpg image
