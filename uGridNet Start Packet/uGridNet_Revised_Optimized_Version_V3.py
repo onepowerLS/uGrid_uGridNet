@@ -1764,6 +1764,9 @@ def SimulateNetwork(site_properties, conc_ID=None, min_trans=1):
     min_num_trans = max(int(kW_max/LV_kW), min_trans, len(indexes_conn)//50)
     max_num_trans = min_num_trans + 5
     household_current = kW_max*1000/(len(indexes_conn)*230)
+    if household_current < 1.712262:
+        household_current = 1.712262
+    print(household_current)
     
     # Set number of repeats 
     num_repeats = 5
