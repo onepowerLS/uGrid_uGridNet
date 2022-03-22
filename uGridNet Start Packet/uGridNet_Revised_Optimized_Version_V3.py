@@ -8,6 +8,7 @@ Created on Sat Oct 23 02:36:16 2021
 import glob
 import os
 import warnings
+import sys
 import numpy as np
 import pandas as pd
 import geopandas as gpd
@@ -24,8 +25,8 @@ from openpyxl import Workbook
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.drawing.image import Image as img
 
-site_name = concession = "MAS_C1"
-concession_id = '_C1_'
+site_name = concession = sys.argv[1]
+concession_id = sys.argv[2]
 
 def get_8760(village_name):
     filtered_list = glob.glob(f'{village_name}*8760*.xlsx')
