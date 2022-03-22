@@ -422,6 +422,7 @@ def CollectVillageData(site_name, reformatScaler=1, exclusionBuffer=2, max_d = 4
             # print(indexes_conn[i,1])
             index_csv_name = "indexes_conn_reformatted_%s.csv" % str(reformatScaler)
             np.savetxt(index_csv_name, indexes_conn, delimiter=",")
+    #MSO did a data fit to determine the equation below. 
     load_per_conn = 0.8957*(len(indexes_conn))**(-0.243)
     print(load_per_conn)
     
