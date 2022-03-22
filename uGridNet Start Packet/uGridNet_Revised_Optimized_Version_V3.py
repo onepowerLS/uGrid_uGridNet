@@ -367,7 +367,7 @@ def CollectVillageData(site_name, reformatScaler=1, exclusionBuffer=2, max_d = 4
 
     #TODO: MSO defined Peakload after doing a data fit
     #PeakLoad = len(len(indexes_conn))*(0.8957*(len(indexes_conn))**(-0.243))
-    PeakLoad = 50
+    PeakLoad = 5
     print("PeakLoad is {}".format(PeakLoad))
 
     # Import kml pdf file (of exclusions) and convert to jpg
