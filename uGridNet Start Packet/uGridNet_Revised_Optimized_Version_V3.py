@@ -362,9 +362,9 @@ def CollectVillageData(site_name, reformatScaler=1, exclusionBuffer=2, max_d = 4
                       +" your input coordinates. Code likely to take long to execute"\
                       +" the loops")
     # Load Files
-    load_file = get_8760(site_name)
-    Load = pd.read_excel(load_file, sheet_name='8760')
-    PeakLoad = Load.kW.values.max()
+    #load_file = get_8760(site_name)
+    #Load = pd.read_excel(load_file, sheet_name='8760')
+    #PeakLoad = Load.kW.values.max()
 
     # Import kml pdf file (of exclusions) and convert to jpg
     pages = convert_from_path(site_name + '_exclusions.pdf', 500)
@@ -422,7 +422,8 @@ def CollectVillageData(site_name, reformatScaler=1, exclusionBuffer=2, max_d = 4
             # print(indexes_conn[i,1])
             index_csv_name = "indexes_conn_reformatted_%s.csv" % str(reformatScaler)
             np.savetxt(index_csv_name, indexes_conn, delimiter=",")
-    load_per_conn = PeakLoad/len(indexes_conn)
+    load_per_conn = 0.8957*(len(indexes_conn))**(-0.243)
+    print(load_per_conn)
     
     # Network Inputs
     net_inputs = pd.read_excel(site_name + '_uGrid_Input.xlsx', sheet_name='Net')
