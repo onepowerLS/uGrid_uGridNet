@@ -364,7 +364,10 @@ def CollectVillageData(site_name, reformatScaler=1, exclusionBuffer=2, max_d = 4
     # Load Files
     #load_file = get_8760(site_name)
     #Load = pd.read_excel(load_file, sheet_name='8760')
-    PeakLoad = len(len(indexes_conn))*(0.8957*(len(indexes_conn))**(-0.243))
+
+    #TODO: MSO defined Peakload after doing a data fit
+    #PeakLoad = len(len(indexes_conn))*(0.8957*(len(indexes_conn))**(-0.243))
+    PeakLoad = 50
     print("PeakLoad is {}".format(PeakLoad))
 
     # Import kml pdf file (of exclusions) and convert to jpg
