@@ -364,7 +364,8 @@ def CollectVillageData(site_name, reformatScaler=1, exclusionBuffer=2, max_d = 4
     # Load Files
     #load_file = get_8760(site_name)
     #Load = pd.read_excel(load_file, sheet_name='8760')
-    #PeakLoad = Load.kW.values.max()
+    PeakLoad = len(len(indexes_conn))*(0.8957*(len(indexes_conn))**(-0.243))
+    print("PeakLoad is {}".format(PeakLoad))
 
     # Import kml pdf file (of exclusions) and convert to jpg
     pages = convert_from_path(site_name + '_exclusions.pdf', 500)
@@ -424,7 +425,7 @@ def CollectVillageData(site_name, reformatScaler=1, exclusionBuffer=2, max_d = 4
             np.savetxt(index_csv_name, indexes_conn, delimiter=",")
     #MSO did a data fit to determine the equation below. 
     load_per_conn = 0.8957*(len(indexes_conn))**(-0.243)
-    print(load_per_conn)
+    print("Load per connection is {}".format(load_per_conn))
     
     # Network Inputs
     net_inputs = pd.read_excel(site_name + '_uGrid_Input.xlsx', sheet_name='Net')
@@ -1769,7 +1770,7 @@ def SimulateNetwork(site_properties, conc_ID=None, min_trans=1):
     household_current = 1.2*(kW_max*1000/(len(indexes_conn)*230))
     if household_current < 1.712262:
         household_current = 2
-    print(household_current)
+    print("Household current is {}".format(household_current))
     
     # Set number of repeats 
     num_repeats = 5
