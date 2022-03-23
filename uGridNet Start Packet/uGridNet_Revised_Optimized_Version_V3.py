@@ -343,8 +343,8 @@ def CollectVillageData(site_name, reformatScaler=1, exclusionBuffer=2, max_d = 4
     
 
     # Identify gps coordinate min and max to determine coordinates of edges of jpg image
-    Longitude_exc = Exclusion_nodes['Longitude']
-    Latitude_exc = Exclusion_nodes['Latitude']
+    Longitude_exc = Exclusion_nodes['x']
+    Latitude_exc = Exclusion_nodes['y']
     # also convert these degrees to radians
     Lat_exc_min = m.radians(Latitude_exc.min())  # top of image (north)
     Lat_exc_max = m.radians(Latitude_exc.max())  # bottom of image (south)
