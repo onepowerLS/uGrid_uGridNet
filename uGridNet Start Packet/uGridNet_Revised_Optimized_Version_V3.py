@@ -1411,7 +1411,7 @@ def VoltageDrop(cable_type, char_length, current, voltage, max_drop_volt):
             else:
                 vdrop.append("High V-Drop")
                 #print(vdrop)
-    print(vd*230, (230 - vd*230), vd ,max_drop_volt)
+            print(vd*230, (230 - vd*230), vd ,max_drop_volt)
     return vdrop
 #==============================================================================
 
