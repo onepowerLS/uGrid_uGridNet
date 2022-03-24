@@ -334,7 +334,7 @@ def CollectVillageData(site_name, reformatScaler=1, exclusionBuffer=2, max_d = 4
     # Import csv file which has been converted from the klm file
     # This gives the points of connections which are houses to link to the distribution grid
     Connect_nodes = pd.read_excel(site_name + '_connections.xlsx')
-    Exclusion_nodes = pd.read_excel(site_name + '_exclusions.xlsx', sheet_name='exclusions')
+    Exclusion_nodes = pd.read_excel(site_name + '_exclusions.xlsx')
     
     # Plot Connections
     #fig, ax = plt.subplots(dpi=150)
