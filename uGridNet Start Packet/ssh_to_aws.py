@@ -16,6 +16,15 @@ def upload_file_to_ec2(file, instance_ip):
     sftp.put(f"{file}", f"/home/ubuntu/{file}")
 
 
+def upload_files_to_ec2(files, instance_ip):
+    transport = paramiko.Transport((instance_ip, 22))
+    transport.connect(username="ubuntu", pkey=KEY)
+
+    sftp = paramiko.SFTPClient.from_transport(transport)
+    for file in files:
+        sftp.put(f"{file}", f"/home/ubuntu/{file}")
+
+
 def run_command_on_ec2(instance_ip, commands):
     # Connect/ssh to an instance
     try:
@@ -23,7 +32,7 @@ def run_command_on_ec2(instance_ip, commands):
         SSH_CLIENT.connect(hostname=instance_ip, username="ubuntu", pkey=KEY)
 
         for command in commands:
-            print(command)
+            print(f"\n{command}\n")
             # Execute a command(cmd) after connecting/ssh to an instance
             stdin, stdout, stderr = SSH_CLIENT.exec_command(command)
             print(stdout.read())

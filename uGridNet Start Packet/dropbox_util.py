@@ -36,30 +36,31 @@ def get_list_from_folder(folder):
     return [f.name for f in files.entries]
 
 
-def download_file_from_dropbox(filename, folder, filepath=None):
+def download_file_from_dropbox(filename, folder, local_folder=".", filepath=None):
     if filepath is None:
         if filename is None or folder is None:
             return None
         else:
             filepath = '{}/{}'.format(folder, filename)
-    output_path = "{}".format(filename)
+    output_path = f"{local_folder}/{filename}"
     DBX.files_download_to_file(path=filepath.lower(), download_path=output_path)
     # metadata = DBX.files_download_to_file(path=filepath, download_path=output_path)
     return output_path
 
 
 def is_output_file(f):
-    result = f[-4:] in ["1.py"] or f[-4:] in [".kml", ".pdf", ".csv"] or f[-5:] in [".xlsx"]
+    result = f[-4:] in ["1.py"] or f[-4:] in [".kml", ".pdf", ".csv", ".png", ".jpg", ".cpg", ".dbf", ".shx",
+                                              ".shp"] or f[-5:] in [".xlsx"]
     return result
 
 
-def upload_output_files(dropbox_folder):
-    local_folder = "."
+def upload_output_files(dropbox_folder, local_folder="."):
     exclude = ["venv", ".cache", ".config", ".local", ".ssh", "__pycache__", ".idea"]
     for root, dirs, files in os.walk(local_folder, topdown=True):
         dirs[:] = [d for d in dirs if d not in exclude]
         files = [f for f in files if is_output_file(f)]
         for filename in files:
+            print(filename)
             # construct the full local path
             local_path = Path(os.path.join(root, filename))
 
@@ -70,9 +71,9 @@ def upload_output_files(dropbox_folder):
             upload_file_to_dropbox(filepath=local_path, destination_path=dropbox_path)
 
 
-def download_input_files(dropbox_folder):
+def download_input_files(dropbox_folder, local_folder):
     files = get_list_from_folder(dropbox_folder)
     files = [f for f in files if "." in f]
     for f in files:
         print(f)
-        download_file_from_dropbox(filename=f, folder=dropbox_folder)
+        download_file_from_dropbox(filename=f, folder=dropbox_folder, local_folder=local_folder)

@@ -1774,9 +1774,9 @@ def SimulateNetwork(site_properties, conc_ID=None, min_trans=1):
     elif len(indexes_conn) in range(20,60):
         max_num_trans = min_num_trans + 2
     elif len(indexes_conn) in range(60,100):
-        max_num_trans = min_num_trans + 4
+        max_num_trans = min_num_trans + 3
     elif len(indexes_conn) in range(100,140):
-        max_num_trans = min_num_trans + 6
+        max_num_trans = min_num_trans + 4
     else:
         max_num_trans = min_num_trans + 15
     
