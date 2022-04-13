@@ -47,5 +47,12 @@ Temporary Items
 .apdisk
 
 
-# IDE Files
+# IDE files and settings
 .idea
+
+#Enviroment variables
+.env
+
+#Output variables
+*/*.csv
+

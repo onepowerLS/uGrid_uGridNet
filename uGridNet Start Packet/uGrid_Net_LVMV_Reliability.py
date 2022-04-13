@@ -311,7 +311,7 @@ def CollectVillageData():
     #Gather the information needed
     #Import csv file which has been converted from the klm file
     #This gives the points of connections which are houses to link to the distribution grid
-    Connect_nodes = pd.read_excel('MAK_connections.xlsx', sheet_name = 'connections')
+    Connect_nodes = pd.read_excel('MAK_connections.xlsx', sheet_name = 'sql_statement')
     Exclusion_nodes = pd.read_excel('MAK_exclusions.xlsx', sheet_name = 'MAK_exclusions')
             
     #Identify gps coordinate min and max to determine coordinates of edges of jpg image
@@ -372,10 +372,10 @@ def CollectVillageData():
         d_Nconnection = np.zeros(len(Connect_nodes))
         indexes_conn = np.zeros((len(Connect_nodes),2))
         for i in range(len(Connect_nodes)): #iteration through connections
-            d_Econnection[i] = GPStoDistance(Lat_exc_min,Lat_exc_min,Long_exc_min,m.radians(Connect_nodes['longitude'][i])) #m
+            d_Econnection[i] = GPStoDistance(Lat_exc_min,Lat_exc_min,Long_exc_min,m.radians(Connect_nodes['x'][i])) #m
             #print(d_Econnection[i])
             #distance of connection to the east (left) (x index)
-            d_Nconnection[i] = GPStoDistance(Lat_exc_min,m.radians(Connect_nodes['latitude'][i]),Long_exc_min,Long_exc_min) #m
+            d_Nconnection[i] = GPStoDistance(Lat_exc_min,m.radians(Connect_nodes['y'][i]),Long_exc_min,Long_exc_min) #m
             #print(d_Nconnection[i])
             #distance of connection to the north (top) (y index)
             #Get array index locations of all connections
