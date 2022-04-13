@@ -1769,16 +1769,16 @@ def SimulateNetwork(site_properties, conc_ID=None, min_trans=1):
     # Evaluate minimum number of transformers
     LV_kW = (230*130)/1000 # kW - LV line 
     min_num_trans = max(int(kW_max/LV_kW), min_trans, len(indexes_conn)//50)
-    if len(indexes_conn) < 20:
+    if len(indexes_conn) < 50:
         max_num_trans = min_num_trans + 1
-    elif len(indexes_conn) in range(20,60):
+    elif len(indexes_conn) in range(50,100):
         max_num_trans = min_num_trans + 2
-    elif len(indexes_conn) in range(60,100):
+    elif len(indexes_conn) in range(100,150):
         max_num_trans = min_num_trans + 3
-    elif len(indexes_conn) in range(100,140):
+    elif len(indexes_conn) in range(150,200):
         max_num_trans = min_num_trans + 4
     else:
-        max_num_trans = min_num_trans + 15
+        max_num_trans = min_num_trans + 5
     
     household_current = 1.2*(kW_max*1000/(len(indexes_conn)*230))
     if household_current < 1.712262:
@@ -1896,7 +1896,7 @@ def SimulateNetwork(site_properties, conc_ID=None, min_trans=1):
                       connections, BestVoltageDrop, concession, conc_ID)
     else:
         print("Could not find a solution, trying again!")
-        return SimulateNetwork(site_properties, conc_ID, min_trans + 5)
+        return SimulateNetwork(site_properties, conc_ID, min_trans + 1)
     return BestPoleClasses, BestNetworkLines, BestDropLines, connections, BestVoltageDrop, BestNetworkCost
 #==============================================================================
 
