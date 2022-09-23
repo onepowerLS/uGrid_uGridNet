@@ -354,20 +354,23 @@ def CollectVillageData(site_name, reformatScaler=1, exclusionBuffer=2, max_d = 4
     # Calculate the distance between the gps coordiantes using Haversine Formula
     # North South Distance #measuring latitude difference
     d_NS = GPStoDistance(Lat_exc_max, Lat_exc_min, Long_exc_max, Long_exc_max)  # m
+    print("d_NS is {}".format(d_NS)) 
     # East West Distance #measuring longitude difference
     d_EW = GPStoDistance(Lat_exc_max, Lat_exc_max, Long_exc_max, Long_exc_min)  # m
+    print("d_EW is {}".format(d_EW))
     
     if d_NS > max_d or d_EW > max_d:
         warnings.warn("Warning! The distances seem too high, you may want to check"\
                       +" your input coordinates. Code likely to take long to execute"\
                       +" the loops")
+        print("max_d is {}".format(max_d))
     # Load Files
     #load_file = get_8760(site_name)
     #Load = pd.read_excel(load_file, sheet_name='8760')
 
     #TODO: MSO defined Peakload after doing a data fit
     #PeakLoad = len(len(indexes_conn))*(0.8957*(len(indexes_conn))**(-0.243))
-    PeakLoad = 5
+    PeakLoad = 5 #This is a dummy value
     print("PeakLoad is {}".format(PeakLoad))
 
     # Import kml pdf file (of exclusions) and convert to jpg
@@ -426,6 +429,7 @@ def CollectVillageData(site_name, reformatScaler=1, exclusionBuffer=2, max_d = 4
             # print(indexes_conn[i,1])
             index_csv_name = "indexes_conn_reformatted_%s.csv" % str(reformatScaler)
             np.savetxt(index_csv_name, indexes_conn, delimiter=",")
+        #print("d_Econnection,d_Nconnection is {}".format(d_Econnection,d_Nconnection))
     #MSO did a data fit to determine the equation below. 
     load_per_conn = 0.8957*(len(indexes_conn))**(-0.243)
     print("Load per connection is {}".format(load_per_conn))
@@ -480,17 +484,20 @@ def CollectVillageData(site_name, reformatScaler=1, exclusionBuffer=2, max_d = 4
 # Calculate Closest Pole to POI (point of interconnection) to generation
 def POI_Pole(lat_Generation,long_Generation,Long_exc_min,Lat_exc_min,d_EW_between,d_NS_between,indexes_poles,d_BW_Adj_Poles):
     EW_dis = GPStoDistance(Lat_exc_min,Lat_exc_min,Long_exc_min,long_Generation)
+    print("EW_dis is {}".format(EW_dis))
     NS_dis = GPStoDistance(Lat_exc_min,lat_Generation,Long_exc_min,Long_exc_min)
+    print("NS_dis is {}".format(NS_dis))
     EW_index = int(EW_dis/d_EW_between)
     NS_index = int(NS_dis/d_NS_between)
     indexes_gen = [EW_index,NS_index]
     #Calculate distances between generation and pole
     #Individually feed in each pair
     num_poles = len(indexes_poles[:,0])
-    Distance_Gen_Poles = np.zeros(num_poles)    
+    Distance_Gen_Poles = np.zeros(num_poles)   
     for i in range(num_poles):
         Distance = DistanceBWindexes(indexes_gen,indexes_poles[i,:],d_EW_between,d_NS_between) #Type error: only size-1 arrays can be converted to Python Scalars
         Distance_Gen_Poles[i] = Distance
+    #print("Distance of generator from poles is {}".format(Distance_Gen_Poles)) 
     closest_pole = np.argmin(Distance_Gen_Poles)
     Distance_Gen_Poles[closest_pole] = 90000000000 # put dummy number
     closest_pole2 = np.argmin(Distance_Gen_Poles)
@@ -1560,7 +1567,7 @@ def ConcessionDetails(dfpoles, dfnet, dfdropline, dfcosts, connections, voltaged
     if conc_id == None:
         wb.save(path+'/'+ filename + ".xlsx")
     else:
-        wb.save(path+'/'+ filename + str(conc_id)+ ".xlsx")
+        wb.save(path+'/'+ filename + str(conc_id)+ str(concession[3:])+".xlsx")
     
     # Save shapefiles
     shapepath = os.path.join(path, 'GIS_Files')
@@ -1769,20 +1776,22 @@ def SimulateNetwork(site_properties, conc_ID=None, min_trans=1):
     # Evaluate minimum number of transformers
     LV_kW = (230*130)/1000 # kW - LV line 
     min_num_trans = max(int(kW_max/LV_kW), min_trans, len(indexes_conn)//50)
-    if len(indexes_conn) < 20:
-        max_num_trans = min_num_trans + 1
-    elif len(indexes_conn) in range(20,60):
+    if len(indexes_conn) < 50:
+        max_num_trans = min_num_trans + 1 
+    elif len(indexes_conn) in range(50,100):
         max_num_trans = min_num_trans + 2
-    elif len(indexes_conn) in range(60,100):
+    elif len(indexes_conn) in range(100,150):
+        max_num_trans = min_num_trans + 3
+    elif len(indexes_conn) in range(150,200):
         max_num_trans = min_num_trans + 4
-    elif len(indexes_conn) in range(100,140):
-        max_num_trans = min_num_trans + 6
     else:
-        max_num_trans = min_num_trans + 15
+        max_num_trans = min_num_trans + 5
+
     
     household_current = 1.2*(kW_max*1000/(len(indexes_conn)*230))
+    print(household_current)
     if household_current < 1.712262:
-        household_current = 2
+        household_current = 1.5
     print("Household current is {}".format(household_current))
     
     # Set number of repeats 
@@ -1896,7 +1905,7 @@ def SimulateNetwork(site_properties, conc_ID=None, min_trans=1):
                       connections, BestVoltageDrop, concession, conc_ID)
     else:
         print("Could not find a solution, trying again!")
-        return SimulateNetwork(site_properties, conc_ID, min_trans + 5)
+        return SimulateNetwork(site_properties, conc_ID, min_trans + 1)
     return BestPoleClasses, BestNetworkLines, BestDropLines, connections, BestVoltageDrop, BestNetworkCost
 #==============================================================================
 

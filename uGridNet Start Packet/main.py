@@ -42,32 +42,25 @@ def run_one_instance(site_name, shortened_id):
     # terminate_instance(instance_id)
 
 
-CONCESSION = "KET"
-NUMBER = "1_0"
+CONCESSION = "MAT"
+NUMBER = "1_2"
 CONCESSION_FOLDER = f"/{NUMBER} 1PWR {CONCESSION}/(0) 1PWR {CONCESSION} WBS/(3) Engineering Design and Planning/3.4. " \
                     f"Detailed Reticulation " \
                     f"Design/uGridNET {CONCESSION}/uGridNet {CONCESSION}"
 # CONCESSION_FOLDER = "/0_4 1PWR SEH/(0) 1PWR SEH WBS/(3) Engineering Design and Planning/3.4. Detailed Reticulation " \
 #                     "Design/uGridNET SEH/uGridNet SEH"
 villages = [
-    # "KET_03_Ha_Nthamaha",
-    #             "KET_04_Ha_Rantoetse",
-    #             "KET_05_Mafeteke",
-    #             "KET_01_Ha_Tjotjela",
-    #             "KET_02_Riverside",
-                "KET_06_Ha_Thetsinyana",
-                "KET_07_Ha_Laene",
-                "KET_08_Letlapeng",
-                "KET_09_Ha_Meta",
-                "KET_10_Ha_Hobeng",
-                "KET_11_Ha_Motlohi",
-                "KET_12_ Ha_Khojana",
-                "KET_13_Ha_Masupha",
-                "KET_14_Sekhutlong",
-                "KET_16_Ha_Nohana",
-                "KET_15_Mafikeng",
-                "KET_17_Boiketlo",
-                "KET_18_Maponyane"
+    "MAT_01_Sekhutlong",
+    "MAT_02_Linareng",
+    "MAT_03_Ha_Makau",
+    "MAT_04_Ha_Mpiti",
+    "MAT_05_Liphakoeng",
+    "MAT_06_Ha_Mokone",
+    "MAT_07_Setefane",
+    "MAT_08_Liraoeleng",
+    "MAT_09_Makhapung",
+    "MAT_10_Masuoaneng",
+    "MAT_11_Mathakeng"
 ]
 
 
