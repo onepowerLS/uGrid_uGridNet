@@ -9,19 +9,22 @@ LV_CABLES = [
         "Type": "LV ABC (2-Core)",
         "VoltageDropConstant": 0.00223,
         "Size": 35,
-        "Cost": 2.1
+        "Cost": 2.1,
+        "CurrentCapacity": 138
     },
     {
         "Type": "LV ABC (2-Core)",
         "VoltageDropConstant": 0.00165,
         "Size": 50,
-        "Cost": 2.33
+        "Cost": 2.33,
+        "CurrentCapacity": 168
     },
     {
         "Type": "LV ABC (2-Core)",
         "VoltageDropConstant": 0.00115,
         "Size": 70,
-        "Cost": 2.72
+        "Cost": 2.72,
+        "CurrentCapacity": 213
     },
     # {
     #     "Type": "LV ABC (2-Core)",

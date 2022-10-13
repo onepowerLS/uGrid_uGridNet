@@ -126,7 +126,9 @@ def create_subnetworks_from_df(networklines_df: pd.DataFrame, poles: list[Pole])
 
     subnetwork_names = list(set([branch_name[:-1] for branch_name in branch_names]))
     subnetwork_names.sort()
+    print(subnetwork_names)
     subnetworks = [SubNetwork(name=subnetwork_name, branches=[]) for subnetwork_name in subnetwork_names]
+    print(subnetworks)
 
     for branch_name in branch_names:
         VISITED_POLES.clear()
@@ -186,7 +188,7 @@ def create_mv_net_from_df(poleclasses_df: pd.DataFrame, networklines_df: pd.Data
 
 def output_voltage_to_gdf(poles: list[Pole]) -> gpd.GeoDataFrame:
     dataframe = pd.DataFrame.from_records([p.to_dict() for p in poles])
-    # print(dataframe)
+    #print(dataframe)
     geodataframe = gpd.GeoDataFrame(dataframe, geometry=gpd.points_from_xy(dataframe.Longitude, dataframe.Latitude))
     return geodataframe
 

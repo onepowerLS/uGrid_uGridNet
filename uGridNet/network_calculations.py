@@ -148,6 +148,7 @@ def network_calculations(
         columns.append(f"CableSize {i}")
         v_drop_df = pd.DataFrame(columns=columns)
         v_drop_df = v_drop_df.append(results_list, ignore_index=True, sort=False)
+        print(v_drop_df)
 
     # Transformer Calculations
     #
@@ -166,10 +167,10 @@ def network_calculations(
         cbl_choice = f"{cbl.size} mm {cbl.cable_type}"
         try:
             cable_quantities[cbl_choice] = cable_quantities[cbl_choice] + cable_choices[cbl]
-            print(f'cable quantities {cable_quantities}')
+            #print(f'cable quantities {cable_quantities}')
         except KeyError:
             cable_quantities[cbl_choice] = cable_choices[cbl]
-            print(f'cable quantities after exception {cable_quantities}')
+            #print(f'cable quantities after exception {cable_quantities}')
             cable_costs[cbl_choice] = cbl.unit_cost
 
     mv_ref = poleclasses_df[poleclasses_df.Type == 'MV']
@@ -177,13 +178,13 @@ def network_calculations(
     lv_ref = poleclasses_df[poleclasses_df.Type == 'LV']
 
     cable_references = list(cable_quantities.keys())
-    print(f'my cable references {cable_references}')
+    #print(f'my cable references {cable_references}')
 
     references = REFERENCES + list(cable_quantities.keys())
     quantity = np.zeros(len(references))
     costs = COSTS + list(cable_costs.values())
-    print(f'costs {costs}, quantities {cable_quantities.values()}')
-    print(len(cable_references))
+    #print(f'costs {costs}, quantities {cable_quantities.values()}')
+    #print(len(cable_references))
     for i in range(len(cable_quantities.values())):
         try:
             quantity[-1-i] = list(cable_quantities.values())[-1-i]
@@ -283,7 +284,7 @@ if __name__ == "__main__":
     vdrop, costs = network_calculations(networklines_df=networklines, poleclasses_df=poleclasses_df, poles_list=poles,
                                         droplines_df=droplines)
 
-    print(costs)
+    #print(costs)
     costs.to_excel("Costs1.xlsx")
     # now = datetime.datetime.now()
     # dataframe = output_voltage_to_gdf(poles)

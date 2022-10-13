@@ -32,7 +32,7 @@ from network_calculations import network_calculations
 
 CONCESSION = sys.argv[1]
 VILLAGE_NUMBER = sys.argv[2]
-VILLAGE_NAME = sys.argv[3]
+VILLAGE_NAME = sys.argv[3] if "C1" not in VILLAGE_NUMBER else None
 
 VILLAGE_ID = f"{CONCESSION}_{VILLAGE_NUMBER}" if (VILLAGE_NUMBER is not None) else f"{CONCESSION}"
 FULL_VILLAGE_NAME = f"{VILLAGE_ID}_{VILLAGE_NAME}" if (VILLAGE_NAME is not None) else f"{VILLAGE_ID}"
@@ -1478,6 +1478,7 @@ def ConcessionDetails(dfpoles, dfnet, dfdropline, dfcosts, connections, voltaged
     dfpoles = dfpoles.dropna()
     dfnet = dfnet.dropna()
     dfdropline = dfdropline.dropna()
+    #print(dfdropline)
     dfcosts = dfcosts.dropna()
     connections = connections.dropna()
     voltagedropdf = voltagedropdf.dropna()
@@ -1777,7 +1778,7 @@ def SimulateNetwork(site_properties,
 
     # Set number of repeats 
     num_repeats = int(num_connections / 10) if num_connections > 109 else 10
-    #num_repeats = 20
+    #num_repeats = 10
     BestCost = 999999999999999  # dummy cost value
     BestPoleClasses = None
     BestNetworkLines = None
@@ -1857,6 +1858,7 @@ def SimulateNetwork(site_properties,
                                       d_EW_between, d_NS_between, indexes_conn)
 
             poleclasses, networklines, droplines, connections = CL
+            #print(droplines)
             # Connect_nodes = pd.read_excel(site_name + '_connections.xlsx')
             # connections,droplines,networklines = add_dropcon_ids(Connect_n
             # odes, connections, droplines, networklines)
@@ -1872,6 +1874,8 @@ def SimulateNetwork(site_properties,
                 else:
                     # print("Network Failed!")
                     network_fail.append('Fail')
+                    #max_num_trans = num_trans
+                    #min_num_trans = max_num_trans -2
             if len(all_LV_Poles) == 0 or len(droplines.index) == 0:
                 network_fail.append('Fail')
             cost_total = networkcost['Line Total (USD)'].values.sum()
@@ -1884,6 +1888,8 @@ def SimulateNetwork(site_properties,
                 BestNetworkLines = networklines.copy()
                 BestPoleClasses = poleclasses.copy()
                 BestVoltageDrop = voltage_drop_df.copy()
+                max_num_trans = num_trans +1 
+                min_num_trans = max_num_trans -2
                 break
     # Put this into excel file
     if BestCost < 999999999999999:
