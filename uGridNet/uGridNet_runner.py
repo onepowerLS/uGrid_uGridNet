@@ -1128,8 +1128,8 @@ def NetworkLinesID(networklines):
             sub_n = f"{idx_[4:6] + idx_[7]}"
             if 'M' in sub_n:
                 idx_ = ID_to[idx]
-                b = idx_[7:9]
-                sub_n = f"{idx_[4:6]}"
+                b = idx_[8:9]
+                sub_n = f"{idx_[4:6] + idx_[7]}"
             sub_net.append(sub_n)
             branch.append(b)
     return sub_net, branch
