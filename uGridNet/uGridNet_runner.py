@@ -1400,7 +1400,7 @@ def ClassifyNetworkPoles(gen_LAT, gen_LON, gen_site_indexes,
         dsub_net, dbranch_ = [], []
         for id_ in drop_fro_ids:
             b = id_[8:9]
-            sub_n = f"{id_[4:7]}"
+            sub_n = f"{id_[4:6] + id_[7]}"
             dsub_net.append(sub_n)
             dbranch_.append(b)
         droplines['SubNetwork'] = dsub_net
@@ -1888,8 +1888,10 @@ def SimulateNetwork(site_properties,
                 BestNetworkLines = networklines.copy()
                 BestPoleClasses = poleclasses.copy()
                 BestVoltageDrop = voltage_drop_df.copy()
-                max_num_trans = num_trans +1 
-                min_num_trans = max_num_trans -2
+                max_num_trans = num_trans +2
+                min_num_trans = max_num_trans -3
+                if min_num_trans == 0:
+                    min_num_trans = 1 
                 break
     # Put this into excel file
     if BestCost < 999999999999999:
