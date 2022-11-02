@@ -340,7 +340,7 @@ if __name__ == "__main__":
     #write these values in the subtotals column, H
     simdate = dt.datetime.today()
     add0 = lambda x: '0'+str(x) if x < 10 else str(x)
-    wb = load_workbook('RAL_uGrid_Output_alt.xlsx')
+    wb = load_workbook(sitename + '_uGrid_Output_alt.xlsx')
     ws = wb["Sizing_Costing"]
     
     ws['H2'] = panels_opt[-1]
@@ -380,7 +380,7 @@ if __name__ == "__main__":
 
     wb
     
-    wb.save('RAL_uGrid_Output_' + str(simdate.year) + add0(simdate.month) + add0(simdate.day) + \
+    wb.save(sitename + '_uGrid_Output_' + str(simdate.year) + add0(simdate.month) + add0(simdate.day) + \
         '_' + add0(simdate.hour) + add0(simdate.minute) + '.xlsx')
     print("File appended.")
 

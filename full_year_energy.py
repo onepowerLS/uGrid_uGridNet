@@ -134,7 +134,7 @@ split_8760 = split_vector(modified8760)
 
 day_totals =[]
 for i in range(len(split_8760)):
-    day_totals.append(max(np.cumsum(split8760[i]))
+    day_totals.append(max(np.cumsum(split8760[i])))
 
 indices = []
 for i in range(366):

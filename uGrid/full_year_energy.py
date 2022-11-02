@@ -73,7 +73,7 @@ def full_year_energy_calc(a, b,index):
     
     #TODO: remove dependency on a template full year enery, require only 8760 to run the algorithm
     full_year = [] 
-    b = vect_split(b)
+    b = split_vector(b)
     k = 0
     m = [] #vector of incremental indices
     for i in range(len(a)):
@@ -134,11 +134,11 @@ split_8760 = split_vector(modified8760)
 
 day_totals =[]
 for i in range(len(split_8760)):
-    day_totals.append(max(np.cumsum(split8760[i]))
+    day_totals.append(max(np.cumsum(split_8760[i])))
 
 indices = []
 for i in range(366):
-    indices.append(len(split8760[i]))
+    indices.append(len(split_8760[i]))
 
 
 
