@@ -31,8 +31,35 @@ def run_one_instance(site_name, shortened_id):
         # "cat log.txt"
     ]
     run_command_on_ec2(commands=commands, instance_ip=instance_ip)
+<<<<<<< HEAD
     stop_instance(instance_id)
     terminate_instance(instance_id)
+=======
+    # stop_instance(instance_id)
+    # terminate_instance(instance_id)
+
+
+CONCESSION = "MAT"
+NUMBER = "1_2"
+CONCESSION_FOLDER = f"/{NUMBER} 1PWR {CONCESSION}/(0) 1PWR {CONCESSION} WBS/(3) Engineering Design and Planning/3.4. " \
+                    f"Detailed Reticulation " \
+                    f"Design/uGridNET {CONCESSION}/uGridNet {CONCESSION}"
+# CONCESSION_FOLDER = "/0_4 1PWR SEH/(0) 1PWR SEH WBS/(3) Engineering Design and Planning/3.4. Detailed Reticulation " \
+#                     "Design/uGridNET SEH/uGridNet SEH"
+villages = [
+    "MAT_01_Sekhutlong",
+    "MAT_02_Linareng",
+    "MAT_03_Ha_Makau",
+    "MAT_04_Ha_Mpiti",
+    "MAT_05_Liphakoeng",
+    "MAT_06_Ha_Mokone",
+    "MAT_07_Setefane",
+    "MAT_08_Liraoeleng",
+    "MAT_09_Makhapung",
+    "MAT_10_Masuoaneng",
+    "MAT_11_Mathakeng"
+]
+>>>>>>> feature/cable_cost_size_quantity_match
 
 
 def run_many(village_list):
