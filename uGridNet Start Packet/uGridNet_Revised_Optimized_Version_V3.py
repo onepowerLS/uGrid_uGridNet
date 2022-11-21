@@ -8,7 +8,10 @@ Created on Sat Oct 23 02:36:16 2021
 import glob
 import os
 import warnings
+<<<<<<< HEAD
 import sys
+=======
+>>>>>>> feature/full_year_energy
 import numpy as np
 import pandas as pd
 import geopandas as gpd
@@ -25,8 +28,13 @@ from openpyxl import Workbook
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.drawing.image import Image as img
 
+<<<<<<< HEAD
 site_name = concession = sys.argv[1]
 concession_id = sys.argv[2]
+=======
+site_name = concession = "RAL"
+concession_id = '_'
+>>>>>>> feature/full_year_energy
 
 def get_8760(village_name):
     filtered_list = glob.glob(f'{village_name}*8760*.xlsx')
@@ -333,6 +341,7 @@ def CollectVillageData(site_name, reformatScaler=1, exclusionBuffer=2, max_d = 4
     # Gather the information needed
     # Import csv file which has been converted from the klm file
     # This gives the points of connections which are houses to link to the distribution grid
+<<<<<<< HEAD
     Connect_nodes = pd.read_excel(site_name + '_connections.xlsx')
     Exclusion_nodes = pd.read_excel(site_name + '_exclusions.xlsx')
     
@@ -345,6 +354,20 @@ def CollectVillageData(site_name, reformatScaler=1, exclusionBuffer=2, max_d = 4
     # Identify gps coordinate min and max to determine coordinates of edges of jpg image
     Longitude_exc = Exclusion_nodes['x']
     Latitude_exc = Exclusion_nodes['y']
+=======
+    Connect_nodes = pd.read_excel("ExceltoKML_"+site_name + '.xlsx')
+    Exclusion_nodes = pd.read_excel(site_name + '_exclusions.xlsx', sheet_name='exclusions')
+    
+    # Plot Connections
+    fig, ax = plt.subplots(dpi=150)
+    ax.scatter(Connect_nodes.Longitude.values, Connect_nodes.Latitude.values)
+    plt.show()
+    
+
+    # Identify gps coordinate min and max to determine coordinates of edges of jpg image
+    Longitude_exc = Exclusion_nodes['Longitude']
+    Latitude_exc = Exclusion_nodes['Latitude']
+>>>>>>> feature/full_year_energy
     # also convert these degrees to radians
     Lat_exc_min = m.radians(Latitude_exc.min())  # top of image (north)
     Lat_exc_max = m.radians(Latitude_exc.max())  # bottom of image (south)
@@ -354,15 +377,21 @@ def CollectVillageData(site_name, reformatScaler=1, exclusionBuffer=2, max_d = 4
     # Calculate the distance between the gps coordiantes using Haversine Formula
     # North South Distance #measuring latitude difference
     d_NS = GPStoDistance(Lat_exc_max, Lat_exc_min, Long_exc_max, Long_exc_max)  # m
+<<<<<<< HEAD
     print("d_NS is {}".format(d_NS)) 
     # East West Distance #measuring longitude difference
     d_EW = GPStoDistance(Lat_exc_max, Lat_exc_max, Long_exc_max, Long_exc_min)  # m
     print("d_EW is {}".format(d_EW))
+=======
+    # East West Distance #measuring longitude difference
+    d_EW = GPStoDistance(Lat_exc_max, Lat_exc_max, Long_exc_max, Long_exc_min)  # m
+>>>>>>> feature/full_year_energy
     
     if d_NS > max_d or d_EW > max_d:
         warnings.warn("Warning! The distances seem too high, you may want to check"\
                       +" your input coordinates. Code likely to take long to execute"\
                       +" the loops")
+<<<<<<< HEAD
         print("max_d is {}".format(max_d))
     # Load Files
     #load_file = get_8760(site_name)
@@ -372,6 +401,12 @@ def CollectVillageData(site_name, reformatScaler=1, exclusionBuffer=2, max_d = 4
     #PeakLoad = len(len(indexes_conn))*(0.8957*(len(indexes_conn))**(-0.243))
     PeakLoad = 5 #This is a dummy value
     print("PeakLoad is {}".format(PeakLoad))
+=======
+    # Load Files
+    load_file = get_8760(site_name)
+    Load = pd.read_excel(load_file, sheet_name='8760')
+    PeakLoad = Load.kW.values.max()
+>>>>>>> feature/full_year_energy
 
     # Import kml pdf file (of exclusions) and convert to jpg
     pages = convert_from_path(site_name + '_exclusions.pdf', 500)
@@ -429,10 +464,14 @@ def CollectVillageData(site_name, reformatScaler=1, exclusionBuffer=2, max_d = 4
             # print(indexes_conn[i,1])
             index_csv_name = "indexes_conn_reformatted_%s.csv" % str(reformatScaler)
             np.savetxt(index_csv_name, indexes_conn, delimiter=",")
+<<<<<<< HEAD
         #print("d_Econnection,d_Nconnection is {}".format(d_Econnection,d_Nconnection))
     #MSO did a data fit to determine the equation below. 
     load_per_conn = 0.8957*(len(indexes_conn))**(-0.243)
     print("Load per connection is {}".format(load_per_conn))
+=======
+    load_per_conn = PeakLoad/len(indexes_conn)
+>>>>>>> feature/full_year_energy
     
     # Network Inputs
     net_inputs = pd.read_excel(site_name + '_uGrid_Input.xlsx', sheet_name='Net')
@@ -484,20 +523,31 @@ def CollectVillageData(site_name, reformatScaler=1, exclusionBuffer=2, max_d = 4
 # Calculate Closest Pole to POI (point of interconnection) to generation
 def POI_Pole(lat_Generation,long_Generation,Long_exc_min,Lat_exc_min,d_EW_between,d_NS_between,indexes_poles,d_BW_Adj_Poles):
     EW_dis = GPStoDistance(Lat_exc_min,Lat_exc_min,Long_exc_min,long_Generation)
+<<<<<<< HEAD
     print("EW_dis is {}".format(EW_dis))
     NS_dis = GPStoDistance(Lat_exc_min,lat_Generation,Long_exc_min,Long_exc_min)
     print("NS_dis is {}".format(NS_dis))
+=======
+    NS_dis = GPStoDistance(Lat_exc_min,lat_Generation,Long_exc_min,Long_exc_min)
+>>>>>>> feature/full_year_energy
     EW_index = int(EW_dis/d_EW_between)
     NS_index = int(NS_dis/d_NS_between)
     indexes_gen = [EW_index,NS_index]
     #Calculate distances between generation and pole
     #Individually feed in each pair
     num_poles = len(indexes_poles[:,0])
+<<<<<<< HEAD
     Distance_Gen_Poles = np.zeros(num_poles)   
     for i in range(num_poles):
         Distance = DistanceBWindexes(indexes_gen,indexes_poles[i,:],d_EW_between,d_NS_between) #Type error: only size-1 arrays can be converted to Python Scalars
         Distance_Gen_Poles[i] = Distance
     #print("Distance of generator from poles is {}".format(Distance_Gen_Poles)) 
+=======
+    Distance_Gen_Poles = np.zeros(num_poles)    
+    for i in range(num_poles):
+        Distance = DistanceBWindexes(indexes_gen,indexes_poles[i,:],d_EW_between,d_NS_between) #Type error: only size-1 arrays can be converted to Python Scalars
+        Distance_Gen_Poles[i] = Distance
+>>>>>>> feature/full_year_energy
     closest_pole = np.argmin(Distance_Gen_Poles)
     Distance_Gen_Poles[closest_pole] = 90000000000 # put dummy number
     closest_pole2 = np.argmin(Distance_Gen_Poles)
@@ -779,6 +829,7 @@ def PoleAngleClass(pole_indexes, d_EW_between, d_NS_between, ntype):
             p_end_2 = pole_indexes[neighbors_idx[1], :]
             agl = AngleBWPoints(p_end_1, p_mid, p_end_2, d_EW_between, d_NS_between)
             if ntype == 'LV':
+<<<<<<< HEAD
                 if agl in range(0,2) or agl in range(178,182):
                     classes.append("mid_straight")
                 elif agl < 45:
@@ -787,6 +838,16 @@ def PoleAngleClass(pole_indexes, d_EW_between, d_NS_between, ntype):
                     classes.append("mid_over_45")
             elif ntype == 'MV':
                 if agl in range(0,2) or agl in range(178,182):
+=======
+                if agl == 0 or agl == 180:
+                    classes.append("mid_straight")
+                elif agl < 60:
+                    classes.append("mid_less_60")
+                elif agl > 60:
+                    classes.append("mid_over_60")
+            elif ntype == 'MV':
+                if agl == 0 or agl == 180:
+>>>>>>> feature/full_year_energy
                     classes.append("mid_straight")
                 elif agl < 30:
                     classes.append("mid_less_30")
@@ -809,6 +870,7 @@ def PoleAngleClass(pole_indexes, d_EW_between, d_NS_between, ntype):
                 
             agl = angles.min()
             if ntype == 'LV':
+<<<<<<< HEAD
                 if agl in range(0,2) or agl in range(178,182):
                     classes.append("mid_straight")
                 elif agl < 45:
@@ -817,6 +879,16 @@ def PoleAngleClass(pole_indexes, d_EW_between, d_NS_between, ntype):
                     classes.append("mid_over_45")
             elif ntype == 'MV':
                 if agl in range(0,2) or agl in range(178,182):
+=======
+                if agl == 0 or agl == 180:
+                    classes.append("mid_straight")
+                elif agl < 60:
+                    classes.append("mid_less_60")
+                elif agl > 60:
+                    classes.append("mid_over_60")
+            elif ntype == 'MV':
+                if agl == 0 or agl == 180:
+>>>>>>> feature/full_year_energy
                     classes.append("mid_straight")
                 elif agl < 30:
                     classes.append("mid_less_30")
@@ -845,6 +917,7 @@ def PoleElevation(gen_LON, gen_LAT, gen_indexes, target_indexes, d_EW_between, d
     new_GDF = new_GDF.set_crs("EPSG:22289")#EPSG:3857
     new_GDF = new_GDF.to_crs("WGS84") #EPSG:4326
     gps = np.array([[list(i.coords)[0][0], list(i.coords)[0][1]] for i in new_GDF.geometry.values])
+<<<<<<< HEAD
     
 
     #print('\r\n*-\r\n Reference Coordinate: ', np.degrees(gen_LON),np.degrees(gen_LAT),'\r\n*')
@@ -854,6 +927,8 @@ def PoleElevation(gen_LON, gen_LAT, gen_indexes, target_indexes, d_EW_between, d
         #lat           #long
         gps[idx][1] , gps[idx][0] = gpsRecalibration(np.degrees(gen_LAT),gps[idx][1],np.degrees(gen_LON),gps[idx][0])
 
+=======
+>>>>>>> feature/full_year_energy
     elevations = []
     url = "https://maps.googleapis.com/maps/api/elevation/json?locations="
     if len(new_GDF) <= 256: 
@@ -1400,7 +1475,11 @@ def VoltageDrop(cable_type, char_length, current, voltage, max_drop_volt):
     cable_types = ['GP', 'Airdac SNE', 'Airdac CNE', 'LV ABC (2-Core)', 'LV ABC (4-Core)', 
                    'PVC (1-Core) + BCEW', 'SWA (2-Core)', 'SWA (4-Core)', 'FOX ACSR']
     
+<<<<<<< HEAD
     cable_sizes = [2.5, 4, 6, 10, 16, 25, 35, 50, 70]
+=======
+    cable_sizes = [2.5, 4, 6, 10, 16, 25, 35, 50, 70, 95, 120, 150, 185, 240, 300]
+>>>>>>> feature/full_year_energy
     
     idx = cable_types.index(cable_type)
     vdrop = []
@@ -1418,7 +1497,11 @@ def VoltageDrop(cable_type, char_length, current, voltage, max_drop_volt):
             else:
                 vdrop.append("High V-Drop")
                 #print(vdrop)
+<<<<<<< HEAD
             print(vd*230, (230 - vd*230), vd ,max_drop_volt)
+=======
+    print(vdrop)
+>>>>>>> feature/full_year_energy
     return vdrop
 #==============================================================================
 
@@ -1494,7 +1577,11 @@ def CableCalculations(networklines, droplines, connections, char_length_factor,
     result['CB_Rating'] = cb_rating
     result['Actual_CB_Size'] = actual_cb_size
     
+<<<<<<< HEAD
     cable_sizes = [2.5, 4, 6, 10, 16, 25, 35, 50, 70]
+=======
+    cable_sizes = [2.5, 4, 6, 10, 16, 25, 35, 50, 70, 95, 120, 150, 185, 240, 300]
+>>>>>>> feature/full_year_energy
     volt_drop_df = pd.DataFrame(columns=['Cable Size ' + str(x) for x in cable_sizes])
     for i in result.index:
         df = result.loc[i]
@@ -1508,7 +1595,10 @@ def CableCalculations(networklines, droplines, connections, char_length_factor,
 # Put the results in an excel file 
 def ConcessionDetails(dfpoles, dfnet, dfdropline, dfcosts, connections, voltagedropdf, 
                       concession, conc_id=None):
+<<<<<<< HEAD
 
+=======
+>>>>>>> feature/full_year_energy
     path = os.path.join(os.getcwd(), concession) # directory to save in
     if os.path.isdir(path):
         pass
@@ -1567,7 +1657,11 @@ def ConcessionDetails(dfpoles, dfnet, dfdropline, dfcosts, connections, voltaged
     if conc_id == None:
         wb.save(path+'/'+ filename + ".xlsx")
     else:
+<<<<<<< HEAD
         wb.save(path+'/'+ filename + str(conc_id)+ str(concession[3:])+".xlsx")
+=======
+        wb.save(path+'/'+ filename + str(conc_id)+ ".xlsx")
+>>>>>>> feature/full_year_energy
     
     # Save shapefiles
     shapepath = os.path.join(path, 'GIS_Files')
@@ -1706,6 +1800,7 @@ def AddSpur(concession, filename, gen_LON, gen_LAT, gen_indexes, indexes, type_,
     ConcessionDetails(GDF, net_len, droplines, networkcost, connections, concession, conc_id)
 #==============================================================================
 
+<<<<<<< HEAD
 def gpsRecalibration(gen_lat, un_lat, gen_long, un_long, orig_long = -1, orig_lat = -1):
     #RECALIBRATE THE GPS COORDINATES FOR THE UGRIDNET OUTPUT
     #Constraints: 1) Ideally Requires the correlation equation be changed respectively for every site run 
@@ -1737,6 +1832,8 @@ def gpsRecalibration(gen_lat, un_lat, gen_long, un_long, orig_long = -1, orig_la
     return corr_lat, corr_long
 
 
+=======
+>>>>>>> feature/full_year_energy
 
 #==============================================================================
 # Run the Network 
@@ -1774,6 +1871,7 @@ def SimulateNetwork(site_properties, conc_ID=None, min_trans=1):
     costs = site_properties["costs"]
     
     # Evaluate minimum number of transformers
+<<<<<<< HEAD
     LV_kW = (230*130)/1000 # kW - LV line 
     min_num_trans = max(int(kW_max/LV_kW), min_trans, len(indexes_conn)//50)
     if len(indexes_conn) < 50:
@@ -1800,6 +1898,12 @@ def SimulateNetwork(site_properties, conc_ID=None, min_trans=1):
     if household_current < 1.712262:
         household_current = 1.5
     print("Household current is {}".format(household_current))
+=======
+    LV_kW = (220*130)/1000 # kW - LV line 
+    min_num_trans = max(int(kW_max/LV_kW), min_trans, len(indexes_conn)//50)
+    max_num_trans = min_num_trans + 5
+    household_current = kW_max*1000/(len(indexes_conn)*230)
+>>>>>>> feature/full_year_energy
     
     # Set number of repeats 
     num_repeats = 5
@@ -1912,7 +2016,11 @@ def SimulateNetwork(site_properties, conc_ID=None, min_trans=1):
                       connections, BestVoltageDrop, concession, conc_ID)
     else:
         print("Could not find a solution, trying again!")
+<<<<<<< HEAD
         return SimulateNetwork(site_properties, conc_ID, min_trans + 1)
+=======
+        return SimulateNetwork(site_properties, conc_ID, min_trans + 5)
+>>>>>>> feature/full_year_energy
     return BestPoleClasses, BestNetworkLines, BestDropLines, connections, BestVoltageDrop, BestNetworkCost
 #==============================================================================
 
@@ -1954,4 +2062,8 @@ if __name__=='__main__':
     # for cc_ in cc:
     #     print(len(cc_))
     #     ax.scatter(cc_[:, 0], cc_[:, 1], s=5)
+<<<<<<< HEAD
     
+=======
+    
+>>>>>>> feature/full_year_energy
