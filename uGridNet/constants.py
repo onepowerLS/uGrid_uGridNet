@@ -1,4 +1,5 @@
 HOUSEHOLD_CURRENT = 2
+AVAILABLE_CABLE_SIZES = [35, 50, 70]
 LV_CABLES = [
     # {
     #     "Type": "LV ABC (2-Core)",
