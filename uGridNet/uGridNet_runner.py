@@ -30,13 +30,25 @@ from constants import HOUSEHOLD_CURRENT, REFERENCES
 from util import create_pole_list_from_df
 from network_calculations import network_calculations
 
-CONCESSION = sys.argv[1]
-VILLAGE_NUMBER = sys.argv[2]
-VILLAGE_NAME = sys.argv[3] if "C1" not in VILLAGE_NUMBER else None
+try:
+    CONCESSION: str = sys.argv[1]
+except IndexError:
+    CONCESSION: str = input("CONCESSION: ")
 
-VILLAGE_ID = f"{CONCESSION}_{VILLAGE_NUMBER}" if (VILLAGE_NUMBER is not None) else f"{CONCESSION}"
-FULL_VILLAGE_NAME = f"{VILLAGE_ID}_{VILLAGE_NAME}" if (VILLAGE_NAME is not None) else f"{VILLAGE_ID}"
+try:
+    VILLAGE_NUMBER: str = sys.argv[2]
+except IndexError:
+    VILLAGE_NUMBER: str = input("VILLAGE_NUMBER: ")
+if "C" in VILLAGE_NUMBER:
+    VILLAGE_NAME: str | None = None
+else:
+    try:
+        VILLAGE_NAME: str = sys.argv[3]
+    except IndexError:
+        VILLAGE_NAME: str = input("VILLAGE NAME:")
 
+VILLAGE_ID: str = f"{CONCESSION}_{VILLAGE_NUMBER}" if (VILLAGE_NUMBER is not None) else f"{CONCESSION}"
+FULL_VILLAGE_NAME: str = f"{VILLAGE_ID}_{VILLAGE_NAME}" if (VILLAGE_NAME is not None) else f"{VILLAGE_ID}"
 
 
 # ==============================================================================
@@ -400,15 +412,15 @@ def CollectVillageData(reformatScaler=1, exclusionBuffer=2, max_d=4000):
     # Load = pd.read_excel(load_file, sheet_name='8760')
 
     # TODO: MSO defined Peakload after doing a data fit
-    #PeakLoad = len(len(indexes_conn))*(0.8957*(len(indexes_conn))**(-0.243))
+    # PeakLoad = len(len(indexes_conn))*(0.8957*(len(indexes_conn))**(-0.243))
     PeakLoad = 5
-    #print("PeakLoad is {}".format(PeakLoad))
+    # print("PeakLoad is {}".format(PeakLoad))
 
     # Import kml pdf file (of exclusions) and convert to jpg
     if os.name == 'nt':
-        pages = convert_from_path(FULL_VILLAGE_NAME + '_exclusions.pdf', 500,)
+        pages = convert_from_path(FULL_VILLAGE_NAME + '_exclusions.pdf', 500, )
     else:
-        pages = convert_from_path(FULL_VILLAGE_NAME + '_exclusions.pdf', 500,)
+        pages = convert_from_path(FULL_VILLAGE_NAME + '_exclusions.pdf', 500, )
     for page in pages:
         page.save(FULL_VILLAGE_NAME + '_exclusions.jpg', 'JPEG')
 
@@ -826,16 +838,16 @@ def PoleAngleClass(pole_indexes, d_EW_between, d_NS_between, ntype):
             p_end_2 = pole_indexes[neighbors_idx[1], :]
             agl = AngleBWPoints(p_end_1, p_mid, p_end_2, d_EW_between, d_NS_between)
             if ntype == 'LV':
-                if agl <5:
+                if agl < 5:
                     classes.append("mid_straight")
                 elif agl < 45:
                     classes.append("mid_less_45")
-                elif agl >45:
+                elif agl > 45:
                     classes.append("mid_over_45")
             elif ntype == 'MV':
-                if agl <5:
+                if agl < 5:
                     classes.append("mid_straight")
-                elif agl <30:
+                elif agl < 30:
                     classes.append("mid_less_30")
                 elif agl > 30:
                     classes.append("mid_over_30")
@@ -856,14 +868,14 @@ def PoleAngleClass(pole_indexes, d_EW_between, d_NS_between, ntype):
 
             agl = angles.min()
             if ntype == 'LV':
-                if agl <5:
+                if agl < 5:
                     classes.append("mid_straight")
                 elif agl < 45:
                     classes.append("mid_less_45")
-                elif agl >45:
+                elif agl > 45:
                     classes.append("mid_over_45")
             elif ntype == 'MV':
-                if agl <5:
+                if agl < 5:
                     classes.append("mid_straight")
                 elif agl < 30:
                     classes.append("mid_less_30")
@@ -917,7 +929,7 @@ def PoleElevation(gen_LON, gen_LAT, gen_indexes, target_indexes, d_EW_between, d
         response = requests.request('GET', url, headers=headers, data=payload).json()
         elevations = [res['elevation'] for res in response['results']]
     else:
-        #print('Many locations:', len(gps))
+        # print('Many locations:', len(gps))
         points = new_GDF.geometry.values
         range_ = int(len(new_GDF) // 256 + 1)
         for i in range(range_):
@@ -977,7 +989,7 @@ def NetworkLength(indexes, d_EW_between, d_NS_between):
 # Evaluate the cost of the network
 def NetworkCost(costs, dfpoles, dfnet, dfdropline):
     result_df = pd.DataFrame()
-    #To remove poles that g=have both MV and LV
+    # To remove poles that g=have both MV and LV
     # dfpoles = dfpoles.drop(dfpoles["Type"].str.equals("LV") & dfpoles["ID"].str.contains("M") & dfpoles["ID"].str[-1].str.isdigit())
 
     mv_ref = dfpoles[dfpoles.Type == 'MV']
@@ -1264,7 +1276,8 @@ def ClassifyNetworkPoles(gen_LAT, gen_LON, gen_site_indexes,
                             LV_Pole_indexes = C
                         else:
                             LV_Pole_indexes = np.vstack((LV_Pole_indexes, C))
-                        LV_Poles_names += [f"{VILLAGE_ID}_{chr(sub_network)}{chr(branch_counter)}{m + 1}" for m in range(len(b_))]
+                        LV_Poles_names += [f"{VILLAGE_ID}_{chr(sub_network)}{chr(branch_counter)}{m + 1}" for m in
+                                           range(len(b_))]
                         branch_counter += 1
         sub_network_counter += 1
 
@@ -1478,7 +1491,7 @@ def ConcessionDetails(dfpoles, dfnet, dfdropline, dfcosts, connections, voltaged
     dfpoles = dfpoles.dropna()
     dfnet = dfnet.dropna()
     dfdropline = dfdropline.dropna()
-    #print(dfdropline)
+    # print(dfdropline)
     dfcosts = dfcosts.dropna()
     connections = connections.dropna()
     voltagedropdf = voltagedropdf.dropna()
@@ -1677,7 +1690,6 @@ def AddSpur(filename, gen_LON, gen_LAT, gen_indexes, indexes, type_,
     geometry = [Point(p[0], p[1]) for p in T_associated_conns]
     connections = gpd.GeoDataFrame(connections, geometry=geometry)
 
-
     ConcessionDetails(GDF, net_len, droplines, networkcost, connections)
 
 
@@ -1759,7 +1771,7 @@ def SimulateNetwork(site_properties,
         min_num_trans = min_trans
     else:
         min_num_trans = max(int(kW_max / LV_kW), min_trans, num_connections // 50)
-        #min_num_trans = 10
+        # min_num_trans = 10
     if num_connections < 50:
         max_num_trans = min_num_trans + 1
     elif num_connections in range(50, 100):
@@ -1778,7 +1790,7 @@ def SimulateNetwork(site_properties,
 
     # Set number of repeats 
     num_repeats = int(num_connections / 10) if num_connections > 109 else 10
-    #num_repeats = 10
+    # num_repeats = 10
     BestCost = 999999999999999  # dummy cost value
     BestPoleClasses = None
     BestNetworkLines = None
@@ -1858,7 +1870,7 @@ def SimulateNetwork(site_properties,
                                       d_EW_between, d_NS_between, indexes_conn)
 
             poleclasses, networklines, droplines, connections = CL
-            #print(droplines)
+            # print(droplines)
             # Connect_nodes = pd.read_excel(site_name + '_connections.xlsx')
             # connections,droplines,networklines = add_dropcon_ids(Connect_n
             # odes, connections, droplines, networklines)
@@ -1874,8 +1886,8 @@ def SimulateNetwork(site_properties,
                 else:
                     # print("Network Failed!")
                     network_fail.append('Fail')
-                    #max_num_trans = num_trans
-                    #min_num_trans = max_num_trans -2
+                    # max_num_trans = num_trans
+                    # min_num_trans = max_num_trans -2
             if len(all_LV_Poles) == 0 or len(droplines.index) == 0:
                 network_fail.append('Fail')
             cost_total = networkcost['Line Total (USD)'].values.sum()
@@ -1888,10 +1900,10 @@ def SimulateNetwork(site_properties,
                 BestNetworkLines = networklines.copy()
                 BestPoleClasses = poleclasses.copy()
                 BestVoltageDrop = voltage_drop_df.copy()
-                max_num_trans = num_trans +2
-                min_num_trans = max_num_trans -3
+                max_num_trans = num_trans + 2
+                min_num_trans = max_num_trans - 3
                 if min_num_trans == 0:
-                    min_num_trans = 1 
+                    min_num_trans = 1
                 break
     # Put this into excel file
     if BestCost < 999999999999999:
