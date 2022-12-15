@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 
 from constants import HOUSEHOLD_CURRENT, LV_CABLES, NOMINAL_LV_VOLTAGE, NOMINAL_MV_VOLTAGE, TRANSFORMER_PROPERTIES, \
-    REFERENCES, COSTS
+    REFERENCES, COSTS, AVAILABLE_CABLE_SIZES
 from models import Branch, Pole, Line, Cable, PoleType, ReticulationNetworkGraph
 from util import create_pole_list_from_df, create_subnetworks_from_df, create_mv_net_from_df, \
     output_voltage_to_gdf, output_voltage_to_excel, determine_transformer_size
@@ -17,6 +17,15 @@ VILLAGE_ID = "RIB_86"
 
 
 def calculate_current(pole: Pole, branch: Branch) -> float:
+    """
+    Calculates the current at a particular pole assumning all connections are consuming HOUSEHOLD CURRENT
+    Args:
+        pole: the pole in question
+        branch: the branch the pole belongs to
+
+    Returns:
+        The total current through the pole
+    """
     connected_poles = list(branch.graph.successors(pole))
     current = pole.connections * HOUSEHOLD_CURRENT
     if len(connected_poles) == 0:
@@ -30,17 +39,44 @@ def calculate_current(pole: Pole, branch: Branch) -> float:
 
 
 def calculate_voltage_drop_for_all_lines(branch: Branch, cable: Cable):
+    """
+    Calculates the voltage drop in a branch for a chosen cable
+    Args:
+        branch: The branch in question
+        cable: The cable chosen
+
+    Returns:
+        None
+    """
     for pole1, pole2, data in list(branch.graph.edges.data()):
         lv_line = data["line"]
         calculate_voltage_drop(pole2, lv_line, cable)
 
 
-def calculate_voltage_drop(pole2, line: Line, cable: Cable) -> float:
-    line.voltage_drop = line.length * cable.voltage_drop_constant * pole2.current
+def calculate_voltage_drop(destination_pole: Pole, line: Line, cable: Cable) -> float:
+    """
+     Calculates the voltage drop between two poles for a given cable size
+    Args:
+        destination_pole: The pole the line is headed to starting from the transformer
+        line: The line connecting the poles
+        cable: The cable used in the line
+
+    Returns:
+        The voltage drop between the poles
+    """
+    line.voltage_drop = line.length * cable.voltage_drop_constant * destination_pole.current
     return line.voltage_drop
 
 
 def calculate_voltage_for_all_poles(ret_graph: ReticulationNetworkGraph) -> float:
+    """
+        Calculates the voltage for all poles in a graph
+    Args:
+        ret_graph:
+
+    Returns:
+        The minimum voltage in the graph
+    """
     terminal_poles = [pole for pole in ret_graph.graph.nodes() if
                       ret_graph.graph.in_degree(pole) != 0 and ret_graph.graph.out_degree(pole) == 0]
     for tp in terminal_poles:
@@ -56,6 +92,15 @@ def calculate_voltage_for_all_poles(ret_graph: ReticulationNetworkGraph) -> floa
 
 
 def calculate_voltage(pole: Pole, branch: Branch) -> float:
+    """
+
+    Args:
+        pole:
+        branch:
+
+    Returns:
+
+    """
     parents = list(branch.graph.predecessors(pole))
     if len(parents) == 0:
         pole.voltage = NOMINAL_LV_VOLTAGE
@@ -69,6 +114,14 @@ def calculate_voltage(pole: Pole, branch: Branch) -> float:
 
 
 def determine_cable_size(branch: Branch) -> tuple[Cable | None, float | None]:
+    """
+
+    Args:
+        branch:
+
+    Returns:
+
+    """
     cable_choices = [
         Cable(size=cable["Size"], cable_type=cable["Type"], voltage_drop_constant=cable["VoltageDropConstant"],
               unit_cost=cable["Cost"])
@@ -91,9 +144,25 @@ def network_calculations(
         poleclasses_df: pd.DataFrame,
         droplines_df: pd.DataFrame,
         poles_list: list[Pole]) -> tuple[pd.DataFrame, pd.DataFrame]:
-    # Cable Calculations
-    #
+    """
+    Args:
+        networklines_df: properties of MV and LV lines in the network
+        poleclasses_df: properties of the poles
+        droplines_df: properties of lines from poles to service connections
+        poles_list: a list of the poles as models.Pole objects
+    Returns:
+        Two dataframes, cable choices and network costs
+    """
 
+    results_list = []
+    cable_choices = {}
+    columns = ["SubNetwork", "Branch", "Connections", "LineType", "CableType", "NominalVoltage",
+               "MinimumVoltage", "Length", "Current"]  # columns of the cable choices dataframe
+    for i in AVAILABLE_CABLE_SIZES:
+        columns.append(f"CableSize {i}")
+    v_drop_df = pd.DataFrame(columns=columns)  # initialize cable choices dataframe
+
+    # MV network calculation
     mv_network = create_mv_net_from_df(poleclasses_df=poleclasses_df, networklines_df=networklines_df, poles=poles_list)
     mv_results = {
         "SubNetwork": "M",
@@ -105,50 +174,49 @@ def network_calculations(
         "NominalVoltage": 11000,
         "MinimumVoltage": mv_network.minimum_voltage
     }
-    columns = ["SubNetwork", "Branch", "Connections", "LineType", "CableType", "NominalVoltage",
-               "MinimumVoltage", "Length", "Current"]
+
+    # LV network calculation
     subnetworks_list = create_subnetworks_from_df(networklines_df, poles_list)
-    results_list = []
-    cable_choices = {}
     for sub in subnetworks_list:
         for b in sub.branches:
             branch_current = b.get_current()
+            length = b.get_length()
+            cable, least_voltage = determine_cable_size(b)
+            result_info = {
+                "SubNetwork": sub.name[-1],
+                "Branch": b.name[-1],
+                "Connections": b.get_number_of_connections(),
+                "LineType": "LV",
+                "NominalVoltage": NOMINAL_LV_VOLTAGE,
+                "MinimumVoltage": least_voltage,
+                "Length": length,
+                "Current": branch_current}
             try:
-                length = b.get_length()
-                cable, least_voltage = determine_cable_size(b)
-                result_info = {"SubNetwork": sub.name[-1], "Branch": b.name[-1],
-                               "Connections": b.get_number_of_connections(), "LineType": "LV",
-                               "CableType": cable.cable_type, "NominalVoltage": 230, "MinimumVoltage": least_voltage,
-                               "Length": length, "Current": branch_current}
-                for i in [35, 50, 70]:
+                result_info["CableType"] = cable.cable_type
+                for i in AVAILABLE_CABLE_SIZES:
                     if i >= cable.size:
                         result_info[f"CableSize {i}"] = "Pass"
                     else:
                         result_info[f"CableSize {i}"] = "Fail"
                 results_list.append(result_info)
+
+                # Add up the length of each cable_choice
                 try:
-                    cable_choices[cable] = cable_choices[cable] + length
+                    cable_choices[cable] = cable_choices[cable] + length  # add if cable chosen in another branch
                 except KeyError:
                     cable_choices[cable] = length
-            except Exception:
-                length = b.get_length()
-                cable, least_voltage = determine_cable_size(b)
-                result_info = {"SubNetwork": sub.name[-1], "Branch": b.name[-1],
-                               "Connections": b.get_number_of_connections(),
-                               "LineType": "LV",
-                               "CableType": "Fail", "NominalVoltage": 230, "MinimumVoltage": least_voltage,
-                               "Length": length, "Current": branch_current}
-                for i in [35, 50, 70]:
+
+            # If the cable is None it means the network fails for all available cable choices.
+            except AttributeError:
+                result_info["CableType"] = "Fail"
+                for i in AVAILABLE_CABLE_SIZES:
                     result_info[f"CableSize {i}"] = "Fail"
                 results_list.append(result_info)
-            sub.get_current()
-    results_list.append(mv_results)
+            sub.get_current()  # Update the current calculation for the subnetwork
 
-    for i in [35, 50, 70]:
-        columns.append(f"CableSize {i}")
-        v_drop_df = pd.DataFrame(columns=columns)
-        v_drop_df = v_drop_df.append(results_list, ignore_index=True, sort=False)
-        print(v_drop_df)
+    results_list.append(mv_results)  # Add MV results to the bottom of the list
+
+    v_drop_df = v_drop_df.append(results_list, ignore_index=True, sort=False)  # Add the results to the dataframe
 
     # Transformer Calculations
     #
@@ -167,10 +235,10 @@ def network_calculations(
         cbl_choice = f"{cbl.size} mm {cbl.cable_type}"
         try:
             cable_quantities[cbl_choice] = cable_quantities[cbl_choice] + cable_choices[cbl]
-            #print(f'cable quantities {cable_quantities}')
+            # print(f'cable quantities {cable_quantities}')
         except KeyError:
             cable_quantities[cbl_choice] = cable_choices[cbl]
-            #print(f'cable quantities after exception {cable_quantities}')
+            # print(f'cable quantities after exception {cable_quantities}')
             cable_costs[cbl_choice] = cbl.unit_cost
 
     mv_ref = poleclasses_df[poleclasses_df.Type == 'MV']
@@ -178,22 +246,20 @@ def network_calculations(
     lv_ref = poleclasses_df[poleclasses_df.Type == 'LV']
 
     cable_references = list(cable_quantities.keys())
-    #print(f'my cable references {cable_references}')
+    # print(f'my cable references {cable_references}')
 
     references = REFERENCES + list(cable_quantities.keys())
     quantity = np.zeros(len(references))
     costs = COSTS + list(cable_costs.values())
-    #print(f'costs {costs}, quantities {cable_quantities.values()}')
-    #print(len(cable_references))
+    # print(f'costs {costs}, quantities {cable_quantities.values()}')
+    # print(len(cable_references))
     for i in range(len(cable_quantities.values())):
         try:
-            quantity[-1-i] = list(cable_quantities.values())[-1-i]
+            quantity[-1 - i] = list(cable_quantities.values())[-1 - i]
         except IndexError:
             pass
 
     quantity[0] = 1
-
-
 
     num_transformers = 0
     for item in mv_ref.ID.values:
@@ -239,20 +305,16 @@ def network_calculations(
 
     # Lines length
     mvnet = networklines_df[networklines_df.Type == 'MV']
-    # lvnet = dfnet[dfnet.Type != 'MV']
     quantity[10] = mvnet.adj_length.values.sum()
-    # quantity[11] = lvnet.adj_length.values.sum()
-    #
-    # # Line drop to households
+
+    # Line drop to households
     quantity[11] = droplines_df.Linedrop.values.sum()
     quantity[12] = len(droplines_df)
-    temp_quantity = list(quantity)
-    temp_quantity = temp_quantity + list(cable_quantities.values())
 
     try:
         temp_df = pd.DataFrame({'Part Reference': references,
-                            'Qty': quantity,
-                            'Price (USD)': costs})
+                                'Qty': quantity,
+                                'Price (USD)': costs})
     except ValueError:
         cutoff = len(costs) - len(quantity)
         costs = costs[:-cutoff]
@@ -284,7 +346,7 @@ if __name__ == "__main__":
     vdrop, costs = network_calculations(networklines_df=networklines, poleclasses_df=poleclasses_df, poles_list=poles,
                                         droplines_df=droplines)
 
-    #print(costs)
+    # print(costs)
     costs.to_excel("Costs1.xlsx")
     # now = datetime.datetime.now()
     # dataframe = output_voltage_to_gdf(poles)
