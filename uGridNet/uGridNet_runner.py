@@ -45,7 +45,7 @@ else:
     try:
         VILLAGE_NAME: str = sys.argv[3]
     except IndexError:
-        VILLAGE_NAME: str = input("VILLAGE NAME:")
+        VILLAGE_NAME: str = input("VILLAGE NAME:  ")
 
 VILLAGE_ID: str = f"{CONCESSION}_{VILLAGE_NUMBER}" if (VILLAGE_NUMBER is not None) else f"{CONCESSION}"
 FULL_VILLAGE_NAME: str = f"{VILLAGE_ID}_{VILLAGE_NAME}" if (VILLAGE_NAME is not None) else f"{VILLAGE_ID}"
