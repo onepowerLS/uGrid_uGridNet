@@ -1,3 +1,25 @@
+import sys
+
+try:
+    CONCESSION: str = sys.argv[1]
+except IndexError:
+    CONCESSION: str = input("CONCESSION: ")
+
+try:
+    VILLAGE_NUMBER: str = sys.argv[2]
+except IndexError:
+    VILLAGE_NUMBER: str = input("VILLAGE_NUMBER: ")
+if "C" in VILLAGE_NUMBER:
+    VILLAGE_NAME: str | None = None
+else:
+    try:
+        VILLAGE_NAME: str = sys.argv[3]
+    except IndexError:
+        VILLAGE_NAME: str = input("VILLAGE NAME:  ")
+
+VILLAGE_ID: str = f"{CONCESSION}_{VILLAGE_NUMBER}" if (VILLAGE_NUMBER is not None) else f"{CONCESSION}"
+FULL_VILLAGE_NAME: str = f"{VILLAGE_ID}_{VILLAGE_NAME}" if (VILLAGE_NAME is not None) else f"{VILLAGE_ID}"
+
 HOUSEHOLD_CURRENT = 2
 AVAILABLE_CABLE_SIZES = [35, 50, 70]
 LV_CABLES = [
