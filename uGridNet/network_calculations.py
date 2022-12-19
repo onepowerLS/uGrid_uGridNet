@@ -89,13 +89,13 @@ def calculate_voltage_for_all_poles(ret_graph: ReticulationNetworkGraph) -> floa
 
 def calculate_voltage(pole: Pole, branch: Branch) -> float:
     """
-
+        Calculate the voltage at a specific pole
     Args:
-        pole:
-        branch:
+        pole: pole in question
+        branch: the branch that the pole is in
 
     Returns:
-
+        The voltage at the pole as float
     """
     parents = list(branch.graph.predecessors(pole))
     if len(parents) == 0:
@@ -111,12 +111,12 @@ def calculate_voltage(pole: Pole, branch: Branch) -> float:
 
 def determine_cable_size(branch: Branch) -> tuple[Cable | None, float | None]:
     """
-
+        Determines the smallest cable size to use in a branch where the voltage drop is with accepted parameters
     Args:
-        branch:
+        branch: the branch in question
 
     Returns:
-
+        The chosen cable size and the lowest voltage in the branch
     """
     cable_choices = [
         Cable(size=cable["Size"], cable_type=cable["Type"], voltage_drop_constant=cable["VoltageDropConstant"],
@@ -129,9 +129,9 @@ def determine_cable_size(branch: Branch) -> tuple[Cable | None, float | None]:
         return None, None
     for choice in cable_choices:
         calculate_voltage_drop_for_all_lines(branch, choice)
-        voltage = calculate_voltage_for_all_poles(branch)
-        if voltage >= 214:
-            return choice, voltage
+        lowest_voltage = calculate_voltage_for_all_poles(branch)
+        if lowest_voltage >= 214:
+            return choice, lowest_voltage
     return None, None
 
 
@@ -332,12 +332,14 @@ if __name__ == "__main__":
     # file = "RIB_SC_uGridPlan.xlsx"\
     village = "RIB_86"
     # file = f"outputs/{village}/{village}/{village}/SEB_07_Moseneke_20220429_0907_uGrid.xlsx"
-    file = "C:/Users/ONEPOWER ADMIN/PycharmProjects/uGrid_uGridNet/uGridNet/outputs/RIB_86_Ha_Nthonyana/RIB_86_Ha_Nthonyana/20220617_1155_RIB_uGrid_86_.xlsx"
+    file = "C:/Users/ONEPOWER ADMIN/PycharmProjects/uGrid_uGridNet/uGridNet/outputs/RIB_86_Ha_Nthonyana" \
+           "/RIB_86_Ha_Nthonyana/20220617_1155_RIB_uGrid_86_.xlsx "
     networklines = pd.read_excel(file, sheet_name="NetworkLength")
     poleclasses_df = pd.read_excel(file, sheet_name="PoleClasses")
     droplines = pd.read_excel(file, sheet_name="DropLines")
     net_inputs = pd.read_excel(
-        "C:/Users/ONEPOWER ADMIN/PycharmProjects/uGrid_uGridNet/uGridNet/outputs/RIB_86_Ha_Nthonyana/RIB_86_Ha_Nthonyana" + '_uGrid_Input.xlsx',
+        "C:/Users/ONEPOWER ADMIN/PycharmProjects/uGrid_uGridNet/uGridNet/outputs/RIB_86_Ha_Nthonyana"
+        "/RIB_86_Ha_Nthonyana" + '_uGrid_Input.xlsx',
         sheet_name='Net')
 
     poles = create_pole_list_from_df(poleclasses_df, droplines)
