@@ -1,28 +1,19 @@
 # -*- coding: utf-8 -*-
 
 """
-This module contains helper and utility functions can be re-usable across the program
+    This module contains helper and utility functions can be re-usable across the program
 """
 from __future__ import annotations
 
 import datetime
 import glob
-import os
 import re
 
 import fiona
-import networkx as nx
-import pandas as pd
 import geopandas as gpd
 import numpy as np
-import pykml as pk
+import pandas as pd
 
-from pykml.factory import KML_ElementMaker as KML
-from pykml.factory import GX_ElementMaker as GX
-
-from lxml import etree
-
-from constants import *
 from models import *
 
 VISITED_POLES = []
