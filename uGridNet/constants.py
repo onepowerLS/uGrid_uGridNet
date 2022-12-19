@@ -1,3 +1,4 @@
+import os
 import sys
 
 try:
@@ -89,7 +90,6 @@ COSTS = [
     2.04,
     186.88,
 ]
-
 REFERENCES = ['Assembly - Pole - MV - Start',
               'Assembly - Step - Down - Transformer',
               'Assembly - Pole - MV - Mid',
@@ -104,14 +104,21 @@ REFERENCES = ['Assembly - Pole - MV - Start',
               # 'Wire - LV',
               'Wire - LineDrop',
               'Assembly - Meter']
-
 TRANSFORMER_PROPERTIES = {
     16: 300,
     25: 400,
     33: 500,
     50: 600,
 }
+inputs_is_village_name = input("Is the inputs folder the name of village?[Y|N]:  ")
+if inputs_is_village_name.upper() == "Y":
+    INPUT_DIRECTORY = FULL_VILLAGE_NAME
+else:
+    INPUT_DIRECTORY = input("Input Directory: ")
 
+OUTPUT_DIRECTORY = f"outputs/{FULL_VILLAGE_NAME}"
+if not os.path.exists(OUTPUT_DIRECTORY):
+    os.mkdir(OUTPUT_DIRECTORY)
 # COST_DICT = {
 #     references: REFERENCES,
 #     quantities: 
