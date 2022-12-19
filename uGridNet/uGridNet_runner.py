@@ -9,7 +9,6 @@ Created on Sat Oct 23 02:36:16 2021
 import datetime as dt
 import math as m
 import os
-import sys
 import warnings
 
 import geopandas as gpd
@@ -26,29 +25,9 @@ from pdf2image import convert_from_path
 from scipy.spatial import distance_matrix
 from shapely.geometry import Point, LineString
 
-from constants import HOUSEHOLD_CURRENT, REFERENCES
+from constants import *
 from util import create_pole_list_from_df
 from network_calculations import network_calculations
-
-try:
-    CONCESSION: str = sys.argv[1]
-except IndexError:
-    CONCESSION: str = input("CONCESSION: ")
-
-try:
-    VILLAGE_NUMBER: str = sys.argv[2]
-except IndexError:
-    VILLAGE_NUMBER: str = input("VILLAGE_NUMBER: ")
-if "C" in VILLAGE_NUMBER:
-    VILLAGE_NAME: str | None = None
-else:
-    try:
-        VILLAGE_NAME: str = sys.argv[3]
-    except IndexError:
-        VILLAGE_NAME: str = input("VILLAGE NAME:  ")
-
-VILLAGE_ID: str = f"{CONCESSION}_{VILLAGE_NUMBER}" if (VILLAGE_NUMBER is not None) else f"{CONCESSION}"
-FULL_VILLAGE_NAME: str = f"{VILLAGE_ID}_{VILLAGE_NAME}" if (VILLAGE_NAME is not None) else f"{VILLAGE_ID}"
 
 
 # ==============================================================================
@@ -1494,7 +1473,7 @@ def ConcessionDetails(dfpoles, dfnet, dfdropline, dfcosts, connections, voltaged
     # print(dfdropline)
     dfcosts = dfcosts.dropna()
     connections = connections.dropna()
-    voltagedropdf = voltagedropdf.dropna()
+    # voltagedropdf = voltagedropdf.dropna()
     path = os.path.join(os.getcwd(), FULL_VILLAGE_NAME)  # directory to save in
     if os.path.isdir(path):
         pass
