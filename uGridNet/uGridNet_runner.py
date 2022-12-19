@@ -120,7 +120,7 @@ def ExclusionMapper(ExclusionMap_array, reformatScaler, exclusionBuffer, d_EW_be
     print("finished new indexing")
 
     # Save new indexes
-    index_csv_name = "indexes_reformatted_%s_bufferzone_%s.csv" % (str(reformatScaler), str(exclusionBuffer))
+    index_csv_name = f"{OUTPUT_DIRECTORY}/indexes_reformatted_{reformatScaler}_bufferzone_{exclusionBuffer}.csv"
     np.savetxt(index_csv_name, indexes, delimiter=",")
     return indexes
 
@@ -359,8 +359,8 @@ def CollectVillageData(reformatScaler=1, exclusionBuffer=2, max_d=4000):
     # Gather the information needed
     # Import csv file which has been converted from the klm file
     # This gives the points of connections which are houses to link to the distribution grid
-    Connect_nodes = pd.read_excel(FULL_VILLAGE_NAME + '_connections.xlsx')
-    Exclusion_nodes = pd.read_excel(FULL_VILLAGE_NAME + '_exclusions.xlsx')
+    Connect_nodes = pd.read_excel(f"{INPUT_DIRECTORY}/{FULL_VILLAGE_NAME}_connections.xlsx")
+    Exclusion_nodes = pd.read_excel(f"{INPUT_DIRECTORY}/{FULL_VILLAGE_NAME}_exclusions.xlsx")
 
     # Plot Connections
     # fig, ax = plt.subplots(dpi=150)
@@ -379,6 +379,7 @@ def CollectVillageData(reformatScaler=1, exclusionBuffer=2, max_d=4000):
     # Calculate the distance between the gps coordiantes using Haversine Formula
     # North South Distance #measuring latitude difference
     d_NS = GPStoDistance(Lat_exc_max, Lat_exc_min, Long_exc_max, Long_exc_max)  # m
+
     # East West Distance #measuring longitude difference
     d_EW = GPStoDistance(Lat_exc_max, Lat_exc_max, Long_exc_max, Long_exc_min)  # m
 
@@ -397,35 +398,36 @@ def CollectVillageData(reformatScaler=1, exclusionBuffer=2, max_d=4000):
 
     # Import kml pdf file (of exclusions) and convert to jpg
     if os.name == 'nt':
-        pages = convert_from_path(FULL_VILLAGE_NAME + '_exclusions.pdf', 500, )
+        pages = convert_from_path(f"{INPUT_DIRECTORY}/{FULL_VILLAGE_NAME}_exclusions.pdf", 500, )
     else:
-        pages = convert_from_path(FULL_VILLAGE_NAME + '_exclusions.pdf', 500, )
+        pages = convert_from_path(f"{INPUT_DIRECTORY}/{FULL_VILLAGE_NAME}_exclusions.pdf", 500, )
+    exclusions_jpg = f"{INPUT_DIRECTORY}/{FULL_VILLAGE_NAME}_exclusions.jpg"
     for page in pages:
-        page.save(FULL_VILLAGE_NAME + '_exclusions.jpg', 'JPEG')
+        page.save(exclusions_jpg, 'JPEG')
 
     # Convert JPG to array
-    ExclusionMap = Image.open(FULL_VILLAGE_NAME + '_exclusions.jpg')
+    ExclusionMap = Image.open(exclusions_jpg)
     ExclusionMap_array = np.array(ExclusionMap)
     # Filter rgb value to 0 'non exclusion' and 1 'exclusion'
     # Black 0-0-0, White 255-255-255
     height = int(len(ExclusionMap_array[:, 0]) / reformatScaler)  # this is y_index_max
     width = int(len(ExclusionMap_array[0, :]) / reformatScaler)  # this is x_index_max
-    filename = "index_maxes_%s.csv" % str(reformatScaler)
+    filename = f"{OUTPUT_DIRECTORY}/index_maxes_{reformatScaler}.csv"
     np.savetxt(filename, [height, width], delimiter=",")
 
     # Determine distance between reformatted pixels (between values in the array)
     d_EW_between = d_EW / width  # m
     d_NS_between = d_NS / height  # m
-    filename = "d_between_%s.csv" % str(reformatScaler)
+    filename = f"{OUTPUT_DIRECTORY}/d_between_{reformatScaler}.csv"
     np.savetxt(filename, [d_EW_between, d_NS_between], delimiter=",")
 
+    index_csv_name = f"{OUTPUT_DIRECTORY}/indexes_conn_reformatted_{reformatScaler}.csv"
     # Load exlusion map, if not available then perform
     # This gathers the exclusion array indexes
     try:
         # print("in try loop")
-        index_csv_name = "indexes_reformatted_%s_bufferzone_%s.csv" % (str(reformatScaler), str(exclusionBuffer))
         indexes_excl = np.loadtxt(index_csv_name, delimiter=",")
-    except:
+    except FileNotFoundError:
         # print("in except loop")
         # quit()
         indexes_excl = ExclusionMapper(ExclusionMap_array, reformatScaler, exclusionBuffer, d_EW_between, d_NS_between,
@@ -434,9 +436,8 @@ def CollectVillageData(reformatScaler=1, exclusionBuffer=2, max_d=4000):
     # Match the connection locations to locations in the array
     # Find distance between east limit of image and connection
     try:
-        index_csv_name = "indexes_conn_reformatted_%s.csv" % str(reformatScaler)
         indexes_conn = np.loadtxt(index_csv_name, delimiter=",")
-    except:
+    except FileNotFoundError:
         d_Econnection = np.zeros(len(Connect_nodes))
         d_Nconnection = np.zeros(len(Connect_nodes))
         indexes_conn = np.zeros((len(Connect_nodes), 2))
@@ -452,22 +453,22 @@ def CollectVillageData(reformatScaler=1, exclusionBuffer=2, max_d=4000):
             # print(indexes_conn[i,0])
             indexes_conn[i, 1] = int(d_Nconnection[i] / d_NS_between)
             # print(indexes_conn[i,1])
-            index_csv_name = "indexes_conn_reformatted_%s.csv" % str(reformatScaler)
             np.savetxt(index_csv_name, indexes_conn, delimiter=",")
     # MSO did a data fit to determine the equation below.
     load_per_conn = 0.8957 * (len(indexes_conn)) ** (-0.243)
-    print("Load per connection is {}".format(load_per_conn))
+    print(f"Load per connection is {load_per_conn}")
 
     # Network Inputs
-    net_inputs = pd.read_excel(FULL_VILLAGE_NAME + '_uGrid_Input.xlsx', sheet_name='Net')
+    u_grid_input_xlsx = f"{INPUT_DIRECTORY}/{FULL_VILLAGE_NAME}_uGrid_Input.xlsx"
+    net_inputs = pd.read_excel(u_grid_input_xlsx, sheet_name='Net')
 
     # Financial inputs
-    financial_inputs = pd.read_excel(FULL_VILLAGE_NAME + '_uGrid_Input.xlsx', sheet_name='NetComponentsCost')
+    financial_inputs = pd.read_excel(u_grid_input_xlsx, sheet_name='NetComponentsCost')
     financial_params = dict(zip(financial_inputs.Component.values, financial_inputs.UnitPrice.values))
     costs = financial_inputs.UnitPrice.values
 
     # Voltage Drop Inputs
-    vdrop_inputs = pd.read_excel(FULL_VILLAGE_NAME + '_uGrid_Input.xlsx', sheet_name='VoltageDrop')
+    vdrop_inputs = pd.read_excel(u_grid_input_xlsx, sheet_name='VoltageDrop')
 
     results = {'indexes_conn': indexes_conn, 'indexes_excl': indexes_excl,
                'height': height, 'width': width, 'd_EW_between': d_EW_between,
@@ -1149,6 +1150,7 @@ def ClassifyNetworkPoles(gen_LAT, gen_LON, gen_site_indexes,
 
     AngleClasses = pd.DataFrame()
     network_length = gpd.GeoDataFrame()
+    print(network_length)
     basen = f"{VILLAGE_ID}_M"
     gen_index = gen_site_indexes
     if not list(MV_Pole_indexes):
@@ -1370,7 +1372,7 @@ def ClassifyNetworkPoles(gen_LAT, gen_LON, gen_site_indexes,
 
     # Add the connections IDs to ugridnet output file
     conn_ids = []
-    raw_connections = pd.read_excel(f"{FULL_VILLAGE_NAME}_connections.xlsx")
+    raw_connections = pd.read_excel(f"{INPUT_DIRECTORY}/{FULL_VILLAGE_NAME}_connections.xlsx")
     raw_connections['Name'].str.replace(' ', '_')
     connections_copy = raw_connections.filter(items=['Longitude', 'Latitude']).to_numpy()
     connections_copy_2 = connections_copy.copy()
@@ -1470,15 +1472,24 @@ def ConcessionDetails(dfpoles, dfnet, dfdropline, dfcosts, connections, voltaged
     dfpoles = dfpoles.dropna()
     dfnet = dfnet.dropna()
     dfdropline = dfdropline.dropna()
-    # print(dfdropline)
     dfcosts = dfcosts.dropna()
     connections = connections.dropna()
-    # voltagedropdf = voltagedropdf.dropna()
-    path = os.path.join(os.getcwd(), FULL_VILLAGE_NAME)  # directory to save in
+
+    # Evaluate date and time on which the simulation is done
+    simdate = dt.datetime.today()  # simulation date
+
+    # Define a function that ensures double digits for day of the month
+    add0 = lambda x: '0' + str(x) if x < 10 else str(x)
+
+    path = f"{OUTPUT_DIRECTORY}/{FULL_VILLAGE_NAME}"  # directory to save in
     if os.path.isdir(path):
         pass
     else:
         os.mkdir(path)
+
+    filename = f"{FULL_VILLAGE_NAME}_{str(simdate.year) + add0(simdate.month) + add0(simdate.day)}_" \
+               f"{add0(simdate.hour) + add0(simdate.minute)}_uGridNet_Output"
+
     # Save these into excel
     wb = Workbook()
     wb.create_sheet(title="PoleClasses", index=0)
@@ -1503,14 +1514,6 @@ def ConcessionDetails(dfpoles, dfnet, dfdropline, dfcosts, connections, voltaged
     ws = wb['NetworkCalculations']
     for row in dataframe_to_rows(voltagedropdf, header=True):
         ws.append(row)
-    # Evaluate date and time on which the simulation is done
-    simdate = dt.datetime.today()  # simulation date
-
-    # Define a function that ensures double digits for day of the month
-    add0 = lambda x: '0' + str(x) if x < 10 else str(x)
-
-    filename = f"{FULL_VILLAGE_NAME}_{str(simdate.year) + add0(simdate.month) + add0(simdate.day)}_" \
-               f"{add0(simdate.hour) + add0(simdate.minute)}_uGridNet_Output"
 
     ws = wb["NetworkLayout"]
     fig, ax = plt.subplots(dpi=250)
@@ -1530,7 +1533,8 @@ def ConcessionDetails(dfpoles, dfnet, dfdropline, dfcosts, connections, voltaged
     free_cell_loc = len(dfcosts) + 3
     ws['D' + str(free_cell_loc)] = 'Total'
     ws['E' + str(free_cell_loc)] = dfcosts['Line Total (USD)'].values.sum()
-    wb.save(path + '/' + filename + ".xlsx")
+
+    wb.save(f"{path}/{filename}.xlsx")
 
     # Save shapefiles
     shapepath = os.path.join(path, 'GIS_Files')
@@ -1547,129 +1551,129 @@ def ConcessionDetails(dfpoles, dfnet, dfdropline, dfcosts, connections, voltaged
 # ==============================================================================
 
 # ==============================================================================
-def AddSpur(filename, gen_LON, gen_LAT, gen_indexes, indexes, type_,
-            d_EW_between, d_NS_between, costs):
-    path = os.path.join(os.getcwd(), FULL_VILLAGE_NAME)  # directory
-    # try:
-    poleclasses = pd.read_excel(path + '/' + filename + ".xlsx", sheet_name='PoleClasses', skiprows=[1])
-    networklength = pd.read_excel(path + '/' + filename + ".xlsx", sheet_name='NetworkLength', skiprows=[1])
-    droplines = pd.read_excel(path + '/' + filename + ".xlsx", sheet_name='DropLines', skiprows=[1])
-    conns = pd.read_excel(path + '/' + filename + ".xlsx", sheet_name='Connections', skiprows=[1])
-    # except:
-    #     poleclasses = pd.read_excel(path + '/' + filename + str(conc_id) + ".xlsx", sheet_name='PoleClasses',
-    #                                 skiprows=[1])
-    #     networklength = pd.read_excel(path + '/' + filename + str(conc_id) + ".xlsx", sheet_name='NetworkLength',
-    #                                   skiprows=[1])
-    #     droplines = pd.read_excel(path + '/' + filename + str(conc_id) + ".xlsx", sheet_name='DropLines', skiprows=[1])
-    #     conns = pd.read_excel(path + '/' + filename + str(conc_id) + ".xlsx", sheet_name='Connections', skiprows=[1])
-    poleclasses = poleclasses.drop(columns=['Unnamed: 0'])
-    pclasses = poleclasses[poleclasses.Type == type_.upper()]
-
-    pole_indexes = pclasses.filter(items=['index_x', 'index_y']).to_numpy()
-    pole_ids = pclasses.ID.values
-    d_bw_poleidxs_newidxs = DistanceBWindexes(pole_indexes, indexes, d_EW_between, d_NS_between)
-    min_dstanc = d_bw_poleidxs_newidxs.min()
-    x_index, y_index = np.where(d_bw_poleidxs_newidxs == min_dstanc)
-    base_ID = pole_ids[x_index[0]]
-    conn_pole = pole_indexes[x_index[0], :]
-    source = np.array([conn_pole[0] * d_EW_between, conn_pole[1] * d_NS_between])
-    X = indexes * np.array([d_EW_between, d_NS_between])
-    dists = np.sqrt(np.sum(np.power(X - source, 2), axis=1))
-    dists_copy = np.copy(dists)
-    dists_copy.sort()
-    C = np.zeros((len(indexes), 2))
-    ordered_index = [np.where(dists == val)[0][0] for val in dists_copy]
-    C[:, 0:2] = indexes[ordered_index]
-    indexes_IDs = []
-    for i in range(len(C)):
-        indexes_IDs.append(base_ID + 'S' + str(i + 1))
-    nw_indxs = np.vstack([C, conn_pole])
-    nw_classes = PoleAngleClass(nw_indxs, d_EW_between, d_NS_between, type_)
-    nw_classes = nw_classes[:-1]
-    el, utmx, utmy, gps = PoleElevation(gen_LON, gen_LAT, gen_indexes, C, d_EW_between, d_NS_between)
-    nw_classes['distance_from_source'] = dists_copy
-    nw_classes['ID'] = indexes_IDs
-    nw_classes['elevation'] = el
-    nw_classes['UTM_X'] = utmx
-    nw_classes['UTM_Y'] = utmy
-    nw_classes['Type'] = type_
-    nw_classes['GPS_X'] = gps[:, 0]
-    nw_classes['GPS_Y'] = gps[:, 1]
-    new_poleclasses = pd.concat([poleclasses, nw_classes])
-
-    GDF = gpd.GeoDataFrame(new_poleclasses,
-                           geometry=gpd.points_from_xy(new_poleclasses.index_x * d_EW_between,
-                                                       new_poleclasses.index_y * d_NS_between))
-
-    from_idxs_net = networklength.filter(items=['index_x_from', 'index_y_from']).to_numpy()
-    to_idxs_net = networklength.filter(items=['index_x_to', 'index_y_to']).to_numpy()
-    from_coords = from_idxs_net * np.array([d_EW_between, d_NS_between])
-    to_coords = to_idxs_net * np.array([d_EW_between, d_NS_between])
-    Lines = [LineString((from_coords[i, :], to_coords[i, :])) for i in range(len(to_coords))]
-    if type_ == 'MV':
-        net_len = NetworkLength(nw_indxs, d_EW_between, d_NS_between)
-        net_len['Type'] = 'MV'
-    else:
-        ntlength = networklength[networklength.Type != 'MV']
-        id_ = None
-        for typ in ntlength.Type.unique():
-            nt = ntlength[ntlength.Type == typ]
-
-            from_ = np.zeros((len(nt), 2))
-            from_[:, 0] = nt.index_x_from.values
-            from_[:, 1] = nt.index_y_from.values
-
-            to_ = np.zeros((len(nt), 2))
-            to_[:, 0] = nt.index_x_to.values
-            to_[:, 1] = nt.index_y_to.values
-
-            from_minus = np.abs(from_ - conn_pole)
-            to_minus = np.abs(to_ - conn_pole)
-
-            if from_minus.min(axis=0)[0] == 0 and from_minus.min(axis=0)[1] == 0:
-                id_ = typ
-                break
-            if to_minus.min(axis=0)[0] == 0 and to_minus.min(axis=0)[1] == 0:
-                id_ = typ
-                break
-        net_len = NetworkLength(nw_indxs, d_EW_between, d_NS_between)
-        net_len['Type'] = id_
-
-    # Put nework lines into a dataframe and geodataframe
-    from_indexes = np.zeros((len(net_len), 2))
-    from_indexes[:, 0] = net_len.index_x_from.values
-    from_indexes[:, 1] = net_len.index_y_from.values
-
-    to_indexes = np.zeros((len(net_len), 2))
-    to_indexes[:, 0] = net_len.index_x_to.values
-    to_indexes[:, 1] = net_len.index_y_to.values
-    el1, utm_x, utm_y, gps = PoleElevation(gen_LON, gen_LAT, gen_indexes, from_indexes, d_EW_between, d_NS_between)
-    el2, utm_x, utm_y, gps = PoleElevation(gen_LON, gen_LAT, gen_indexes, to_indexes, d_EW_between, d_NS_between)
-    pole_elevation = CorrectLengthAngle(net_len.length.values, el1, el2)
-    net_len['elevation_angle'] = pole_elevation
-    net_len['adj_length'] = net_len['length'] / np.cos(np.radians(net_len.elevation_angle))
-
-    networklength = gpd.GeoDataFrame(networklength, geometry=Lines)
-    net_len = pd.concat([networklength, net_len])
-
-    networkcost = NetworkCost(costs, poleclasses, networklines, droplines)
-
-    drop_fro = droplines.filter(items=['index_x_from', 'index_y_from']).to_numpy()
-    drop_to = droplines.filter(items=['index_x_to', 'index_y_to']).to_numpy()
-
-    drop_fro = drop_fro * np.array([d_EW_between, d_NS_between])
-    drop_to = drop_to * np.array([d_EW_between, d_NS_between])
-
-    lines = [LineString((drop_fro[i, :], drop_to[i, :])) for i in range(len(drop_to))]
-    droplines = gpd.GeoDataFrame(droplines, geometry=lines)
-
-    indexes_conn = conns.to_numpy()
-    T_associated_conns = indexes_conn * np.array([d_EW_between, d_NS_between])
-    connections = pd.DataFrame({'index_x': indexes_conn[:, 0], 'index_y': indexes_conn[:, 1]})
-    geometry = [Point(p[0], p[1]) for p in T_associated_conns]
-    connections = gpd.GeoDataFrame(connections, geometry=geometry)
-
-    ConcessionDetails(GDF, net_len, droplines, networkcost, connections)
+# def AddSpur(filename, gen_LON, gen_LAT, gen_indexes, indexes, type_,
+#             d_EW_between, d_NS_between, costs):
+#     path = os.path.join(os.getcwd(), FULL_VILLAGE_NAME)  # directory
+#     # try:
+#     poleclasses = pd.read_excel(path + '/' + filename + ".xlsx", sheet_name='PoleClasses', skiprows=[1])
+#     networklength = pd.read_excel(path + '/' + filename + ".xlsx", sheet_name='NetworkLength', skiprows=[1])
+#     droplines = pd.read_excel(path + '/' + filename + ".xlsx", sheet_name='DropLines', skiprows=[1])
+#     conns = pd.read_excel(path + '/' + filename + ".xlsx", sheet_name='Connections', skiprows=[1])
+#     # except:
+#     #     poleclasses = pd.read_excel(path + '/' + filename + str(conc_id) + ".xlsx", sheet_name='PoleClasses',
+#     #                                 skiprows=[1])
+#     #     networklength = pd.read_excel(path + '/' + filename + str(conc_id) + ".xlsx", sheet_name='NetworkLength',
+#     #                                   skiprows=[1])
+#     #     droplines = pd.read_excel(path + '/' + filename + str(conc_id) + ".xlsx", sheet_name='DropLines', skiprows=[1])
+#     #     conns = pd.read_excel(path + '/' + filename + str(conc_id) + ".xlsx", sheet_name='Connections', skiprows=[1])
+#     poleclasses = poleclasses.drop(columns=['Unnamed: 0'])
+#     pclasses = poleclasses[poleclasses.Type == type_.upper()]
+#
+#     pole_indexes = pclasses.filter(items=['index_x', 'index_y']).to_numpy()
+#     pole_ids = pclasses.ID.values
+#     d_bw_poleidxs_newidxs = DistanceBWindexes(pole_indexes, indexes, d_EW_between, d_NS_between)
+#     min_dstanc = d_bw_poleidxs_newidxs.min()
+#     x_index, y_index = np.where(d_bw_poleidxs_newidxs == min_dstanc)
+#     base_ID = pole_ids[x_index[0]]
+#     conn_pole = pole_indexes[x_index[0], :]
+#     source = np.array([conn_pole[0] * d_EW_between, conn_pole[1] * d_NS_between])
+#     X = indexes * np.array([d_EW_between, d_NS_between])
+#     dists = np.sqrt(np.sum(np.power(X - source, 2), axis=1))
+#     dists_copy = np.copy(dists)
+#     dists_copy.sort()
+#     C = np.zeros((len(indexes), 2))
+#     ordered_index = [np.where(dists == val)[0][0] for val in dists_copy]
+#     C[:, 0:2] = indexes[ordered_index]
+#     indexes_IDs = []
+#     for i in range(len(C)):
+#         indexes_IDs.append(base_ID + 'S' + str(i + 1))
+#     nw_indxs = np.vstack([C, conn_pole])
+#     nw_classes = PoleAngleClass(nw_indxs, d_EW_between, d_NS_between, type_)
+#     nw_classes = nw_classes[:-1]
+#     el, utmx, utmy, gps = PoleElevation(gen_LON, gen_LAT, gen_indexes, C, d_EW_between, d_NS_between)
+#     nw_classes['distance_from_source'] = dists_copy
+#     nw_classes['ID'] = indexes_IDs
+#     nw_classes['elevation'] = el
+#     nw_classes['UTM_X'] = utmx
+#     nw_classes['UTM_Y'] = utmy
+#     nw_classes['Type'] = type_
+#     nw_classes['GPS_X'] = gps[:, 0]
+#     nw_classes['GPS_Y'] = gps[:, 1]
+#     new_poleclasses = pd.concat([poleclasses, nw_classes])
+#
+#     GDF = gpd.GeoDataFrame(new_poleclasses,
+#                            geometry=gpd.points_from_xy(new_poleclasses.index_x * d_EW_between,
+#                                                        new_poleclasses.index_y * d_NS_between))
+#
+#     from_idxs_net = networklength.filter(items=['index_x_from', 'index_y_from']).to_numpy()
+#     to_idxs_net = networklength.filter(items=['index_x_to', 'index_y_to']).to_numpy()
+#     from_coords = from_idxs_net * np.array([d_EW_between, d_NS_between])
+#     to_coords = to_idxs_net * np.array([d_EW_between, d_NS_between])
+#     Lines = [LineString((from_coords[i, :], to_coords[i, :])) for i in range(len(to_coords))]
+#     if type_ == 'MV':
+#         net_len = NetworkLength(nw_indxs, d_EW_between, d_NS_between)
+#         net_len['Type'] = 'MV'
+#     else:
+#         ntlength = networklength[networklength.Type != 'MV']
+#         id_ = None
+#         for typ in ntlength.Type.unique():
+#             nt = ntlength[ntlength.Type == typ]
+#
+#             from_ = np.zeros((len(nt), 2))
+#             from_[:, 0] = nt.index_x_from.values
+#             from_[:, 1] = nt.index_y_from.values
+#
+#             to_ = np.zeros((len(nt), 2))
+#             to_[:, 0] = nt.index_x_to.values
+#             to_[:, 1] = nt.index_y_to.values
+#
+#             from_minus = np.abs(from_ - conn_pole)
+#             to_minus = np.abs(to_ - conn_pole)
+#
+#             if from_minus.min(axis=0)[0] == 0 and from_minus.min(axis=0)[1] == 0:
+#                 id_ = typ
+#                 break
+#             if to_minus.min(axis=0)[0] == 0 and to_minus.min(axis=0)[1] == 0:
+#                 id_ = typ
+#                 break
+#         net_len = NetworkLength(nw_indxs, d_EW_between, d_NS_between)
+#         net_len['Type'] = id_
+#
+#     # Put nework lines into a dataframe and geodataframe
+#     from_indexes = np.zeros((len(net_len), 2))
+#     from_indexes[:, 0] = net_len.index_x_from.values
+#     from_indexes[:, 1] = net_len.index_y_from.values
+#
+#     to_indexes = np.zeros((len(net_len), 2))
+#     to_indexes[:, 0] = net_len.index_x_to.values
+#     to_indexes[:, 1] = net_len.index_y_to.values
+#     el1, utm_x, utm_y, gps = PoleElevation(gen_LON, gen_LAT, gen_indexes, from_indexes, d_EW_between, d_NS_between)
+#     el2, utm_x, utm_y, gps = PoleElevation(gen_LON, gen_LAT, gen_indexes, to_indexes, d_EW_between, d_NS_between)
+#     pole_elevation = CorrectLengthAngle(net_len.length.values, el1, el2)
+#     net_len['elevation_angle'] = pole_elevation
+#     net_len['adj_length'] = net_len['length'] / np.cos(np.radians(net_len.elevation_angle))
+#
+#     networklength = gpd.GeoDataFrame(networklength, geometry=Lines)
+#     net_len = pd.concat([networklength, net_len])
+#
+#     networkcost = NetworkCost(costs, poleclasses, networklines, droplines)
+#
+#     drop_fro = droplines.filter(items=['index_x_from', 'index_y_from']).to_numpy()
+#     drop_to = droplines.filter(items=['index_x_to', 'index_y_to']).to_numpy()
+#
+#     drop_fro = drop_fro * np.array([d_EW_between, d_NS_between])
+#     drop_to = drop_to * np.array([d_EW_between, d_NS_between])
+#
+#     lines = [LineString((drop_fro[i, :], drop_to[i, :])) for i in range(len(drop_to))]
+#     droplines = gpd.GeoDataFrame(droplines, geometry=lines)
+#
+#     indexes_conn = conns.to_numpy()
+#     T_associated_conns = indexes_conn * np.array([d_EW_between, d_NS_between])
+#     connections = pd.DataFrame({'index_x': indexes_conn[:, 0], 'index_y': indexes_conn[:, 1]})
+#     geometry = [Point(p[0], p[1]) for p in T_associated_conns]
+#     connections = gpd.GeoDataFrame(connections, geometry=geometry)
+#
+#     ConcessionDetails(GDF, net_len, droplines, networkcost, connections)
 
 
 # ==============================================================================
@@ -1765,7 +1769,7 @@ def SimulateNetwork(site_properties,
     household_current = 1.2 * (kW_max * 1000 / (num_connections * 230))
     if household_current < 10:
         household_current = 2
-    print("Household current is {}".format(household_current))
+    print(f"Household current is {household_current}")
 
     # Set number of repeats 
     num_repeats = int(num_connections / 10) if num_connections > 109 else 10
@@ -1778,11 +1782,11 @@ def SimulateNetwork(site_properties,
     for i in range(num_repeats):
         # Evaluate the network for all transformers from mimimun to maximum
         for num_trans in range(min_num_trans, max_num_trans):
-            print("Iteration number {} of {}, with {} transformers".format(i + 1, num_repeats, num_trans))
+            print(f"Iteration number {i + 1} of {num_repeats}, with {num_trans} transformers")
             # Evaluate the customer clusters
             min_custs = 3  # No transformer can have less than 3 customers
             if min_custs * num_trans > num_connections:
-                print("Number of customers, {} too low to justify {} transformers".format(num_connections, num_trans))
+                print(f"Number of customers, {num_connections} too low to justify {num_trans} transformers")
                 break
             max_custs = min(num_connections // num_trans + 25, num_connections)
             conn_clusters, centroids = ClusterTransformerCusts(indexes_conn, d_EW_between,
@@ -1900,23 +1904,23 @@ def SimulateNetwork(site_properties,
 
 if __name__ == '__main__':
 
-    if os.path.exists('outputs/indexes_conn_reformatted_1.csv'):
-        os.remove('outputs/indexes_conn_reformatted_1.csv')
+    if os.path.exists(f'{OUTPUT_DIRECTORY}/indexes_conn_reformatted_1.csv'):
+        os.remove(f'{OUTPUT_DIRECTORY}/indexes_conn_reformatted_1.csv')
 
-    if os.path.exists('outputs/indexes_reformatted_1_bufferzone_2.csv'):
-        os.remove('outputs/indexes_reformatted_1_bufferzone_2.csv')
+    if os.path.exists(f'{OUTPUT_DIRECTORY}/indexes_reformatted_1_bufferzone_2.csv'):
+        os.remove(f'{OUTPUT_DIRECTORY}/indexes_reformatted_1_bufferzone_2.csv')
 
-    if os.path.exists('outputs/index_maxes_1.csv'):
-        os.remove('outputs/index_maxes_1.csv')
+    if os.path.exists(f'{OUTPUT_DIRECTORY}/index_maxes_1.csv'):
+        os.remove(f'{OUTPUT_DIRECTORY}/index_maxes_1.csv')
 
-    if os.path.exists('outputs/d_between_1.csv'):
-        os.remove('outputs/d_between_1.csv')
+    if os.path.exists(f'{OUTPUT_DIRECTORY}/d_between_1.csv'):
+        os.remove(f'{OUTPUT_DIRECTORY}/d_between_1.csv')
 
     site_properties = CollectVillageData()
     # for k, v in site_properties.items():
     #     exec(k + '= v')
 
-    print("Done collecting village info, run optimizer")
+    print("Done collecting village info, run optimizer ...")
     poleclasses, networklines, droplines, connections, vd, nc = SimulateNetwork(site_properties)
 
     fig, ax = plt.subplots(dpi=150)
