@@ -7,13 +7,9 @@ import datetime
 import numpy as np
 import pandas as pd
 
-from constants import HOUSEHOLD_CURRENT, LV_CABLES, NOMINAL_LV_VOLTAGE, NOMINAL_MV_VOLTAGE, TRANSFORMER_PROPERTIES, \
-    REFERENCES, COSTS, AVAILABLE_CABLE_SIZES
-from models import Branch, Pole, Line, Cable, PoleType, ReticulationNetworkGraph
-from util import create_pole_list_from_df, create_subnetworks_from_df, create_mv_net_from_df, \
-    output_voltage_to_gdf, output_voltage_to_excel, determine_transformer_size
-
-VILLAGE_ID = "RIB_86"
+from constants import *
+from models import *
+from util import *
 
 
 def calculate_current(pole: Pole, branch: Branch) -> float:
@@ -167,12 +163,16 @@ def network_calculations(
     mv_results = {
         "SubNetwork": "M",
         "Branch": 1,
+        "Connections": "N/A",
         "LineType": "MV",
         "CableType": "FOX ACSR",
         "Length": mv_network.get_length(),
-        "CableSize 35": "Pass",
+        "CableSize 35": "N/A",
+        "CableSize 70": "N/A",
+        "CableSize 50": "N/A",
         "NominalVoltage": 11000,
-        "MinimumVoltage": mv_network.minimum_voltage
+        "MinimumVoltage": mv_network.minimum_voltage,
+        "Current": "N/A"
     }
 
     # LV network calculation
