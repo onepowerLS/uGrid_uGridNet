@@ -8,7 +8,6 @@ Created on Sat Oct 23 02:36:16 2021
 
 import datetime as dt
 import math as m
-import os
 import warnings
 
 import geopandas as gpd
@@ -26,8 +25,8 @@ from scipy.spatial import distance_matrix
 from shapely.geometry import Point, LineString
 
 from constants import *
-from util import create_pole_list_from_df
 from network_calculations import network_calculations
+from util import create_pole_list_from_df
 
 
 # ==============================================================================
