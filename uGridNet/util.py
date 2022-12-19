@@ -17,7 +17,7 @@ from pykml.factory import GX_ElementMaker as GX
 
 from lxml import etree
 
-from constants import HOUSEHOLD_CURRENT, NOMINAL_MV_VOLTAGE, TRANSFORMER_PROPERTIES
+from constants import *
 from models import Pole, Line, SubNetwork, Branch, LineType, MVNetwork, GenerationSite, PoleType, Transformer
 
 VISITED_POLES = []
@@ -113,22 +113,54 @@ def generate_digraph_edges(first_pole_id: str, filtered_df: pd.DataFrame, poles:
         return the_results
 
 
+def update_subnetwork_name(name: str) -> str:
+    """
+        Updates name from networklines dataframe to be used with subnetwork class
+    Args:
+        name: subnetwork name from networklines
+
+    Returns:
+        new subnetwork name
+    """
+    new_name = f"{VILLAGE_ID}_{name[-1]}"
+    return new_name
+
+
+def update_branch_name(branch_name: str, subnetwork_name: str) -> str:
+    """
+        Updates branch name from networklines dataframe to be used with subnetwork class
+    Args:
+        branch_name: branch name from networklines
+        subnetwork_name: corresponding subnetwork
+    Returns:
+        new subnetwork name
+    """
+    new_name = f"{VILLAGE_ID}_{subnetwork_name[-1]}{branch_name}"
+    return new_name
+
+
 def create_subnetworks_from_df(networklines_df: pd.DataFrame, poles: list[Pole]) -> list[SubNetwork]:
     networklines_df = networklines_df.dropna()
-    # pole_ids_to = networklines_df["Node 2"].tolist()
-    pole_ids_to = networklines_df["Pole_ID_To"].tolist()
-    pole_ids_from = networklines_df["Pole_ID_From"].tolist()
-    # pole_ids_from = networklines_df["Node 1"].tolist()
-    unique_pole_ids = list(set(pole_ids_to + pole_ids_from))
-    branch_names = [pole_id[:9] for pole_id in unique_pole_ids if pole_id[7] != "M"]
+
+    subnetwork_column = networklines_df["SubNetwork"].to_list()
+    branch_column = networklines_df["Branch"].to_list()
+
+    branch_names = []
+    for i in range(len(branch_column)):
+        branch_names.append(update_branch_name(branch_column[i], subnetwork_column[i]))
     branch_names = list(set(branch_names))
+    branch_names = [b for b in branch_names if b[-2] !="M"]
     branch_names.sort()
 
-    subnetwork_names = list(set([branch_name[:-1] for branch_name in branch_names]))
+    subs = list(set(subnetwork_column))
+    subs.sort()
+
+    subnetwork_names = list(set([update_subnetwork_name(s) for s in subs]))
+    subnetwork_names = [s for s in subnetwork_names if not s.endswith("M")]
+    # subnetwork_names = list(set([branch_name[:-1] for branch_name in branch_names]))
+    # networklines_df.to_excel(f"{len(subnetwork_names)}_{datetime.datetime.now()}_transformers.xlsx")
     subnetwork_names.sort()
-    print(subnetwork_names)
     subnetworks = [SubNetwork(name=subnetwork_name, branches=[]) for subnetwork_name in subnetwork_names]
-    print(subnetworks)
 
     for branch_name in branch_names:
         VISITED_POLES.clear()
@@ -188,7 +220,7 @@ def create_mv_net_from_df(poleclasses_df: pd.DataFrame, networklines_df: pd.Data
 
 def output_voltage_to_gdf(poles: list[Pole]) -> gpd.GeoDataFrame:
     dataframe = pd.DataFrame.from_records([p.to_dict() for p in poles])
-    #print(dataframe)
+    # print(dataframe)
     geodataframe = gpd.GeoDataFrame(dataframe, geometry=gpd.points_from_xy(dataframe.Longitude, dataframe.Latitude))
     return geodataframe
 
@@ -292,7 +324,7 @@ def add_dropcon_ids(conn_input: pd.DataFrame, conn_output: pd.DataFrame, droplin
 
 def determine_transformer_size(subnetwork: SubNetwork) -> int | None:
     current = subnetwork.get_current()
-    power = (current * HOUSEHOLD_CURRENT)/1000
+    power = (current * HOUSEHOLD_CURRENT) / 1000
 
     transformer = subnetwork.transformer
 
@@ -305,3 +337,8 @@ def determine_transformer_size(subnetwork: SubNetwork) -> int | None:
             transformer.size = size
             return size
     return None
+
+
+if __name__ == "__main__":
+    net_lines = pd.read_excel("4_2022-12-15 14:05:31.651500_transformers.xlsx")
+    create_subnetworks_from_df(networklines_df=net_lines, poles=[])
