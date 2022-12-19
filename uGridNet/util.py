@@ -1,3 +1,8 @@
+# -*- coding: utf-8 -*-
+
+"""
+This module contains helper and utility functions can be re-usable across the program
+"""
 from __future__ import annotations
 
 import datetime
@@ -18,16 +23,35 @@ from pykml.factory import GX_ElementMaker as GX
 from lxml import etree
 
 from constants import *
-from models import Pole, Line, SubNetwork, Branch, LineType, MVNetwork, GenerationSite, PoleType, Transformer
+from models import *
 
 VISITED_POLES = []
 
 
 def get_url(string_input: str) -> list[str]:
+    """
+    Extracts URLs from a string
+    Args:
+        string_input: The string to get a URL from
+
+    Returns:
+        list[str]: A list of URLs found in the string.
+    """
     return re.findall(r'(https?://\S+)', string_input)
 
 
 def get_8760(village_name: str) -> str | None:
+    """
+        Finds the exact name of the 8760 file in the input folder.
+
+        The need for this function appeared because 8760 files were not saved with the same name convention
+
+    Args:
+        village_name: The village for which the 8760 file is searched
+
+    Returns:
+        str | None: the name of the 8760 file.
+    """
     filtered_list = glob.glob(f'{village_name}*8760*.xlsx')
     for f in filtered_list:
         if village_name in f and '8760' in f:
@@ -36,6 +60,16 @@ def get_8760(village_name: str) -> str | None:
 
 
 def create_pole_list_from_df(poleclasses_df: pd.DataFrame, droplines_df: pd.DataFrame) -> list[Pole]:
+    """
+        Creates a list of pole object from poleclasses and droplines dataframes from the ClassifyNetwork function in
+        uGridNet_runner
+    Args:
+        poleclasses_df: dataframe with pole details including coordinates and whether they are LV or MV poles
+        droplines_df: dataframe with details of droplines including connections and poles they connect
+
+    Returns:
+        list[Pole] : a list of Pole of objects
+    """
     poleclasses_df = poleclasses_df.dropna()
     pole_ids = poleclasses_df["ID"].tolist()
     pole_ids.sort()
@@ -66,6 +100,15 @@ def create_pole_list_from_df(poleclasses_df: pd.DataFrame, droplines_df: pd.Data
 
 
 def get_pole_from_list(pole_id: str, poles: list[Pole]) -> Pole | None:
+    """
+        Gets a pole object with a matching id from a list of poles
+    Args:
+        pole_id: unique pole ID
+        poles: list of poles in a network
+
+    Returns:
+        Pole: the pole with the ID provided
+    """
     try:
         pole = [p for p in poles if p.pole_id == pole_id][0]
         return pole
@@ -74,6 +117,15 @@ def get_pole_from_list(pole_id: str, poles: list[Pole]) -> Pole | None:
 
 
 def get_next_pole(pole_id: str, branch_df: pd.DataFrame) -> list[str]:
+    """
+    Finds the next pole by traversing the network branch from the transformer towards the connections
+    Args:
+        pole_id: a unique pole ID
+        branch_df: A subset of the networklines dataframe filtered by branch
+
+    Returns:
+        list[str]: IDs of poles that are directly connected downstream from pole_id
+    """
     VISITED_POLES.append(pole_id)
     result_df = branch_df[
         # (branch_df["Node 2"] == pole_id) | (branch_df["Node 1"] == pole_id)]
@@ -87,6 +139,16 @@ def get_next_pole(pole_id: str, branch_df: pd.DataFrame) -> list[str]:
 
 
 def get_line_length(pole1_id: str, pole2_id: str, branch_df: pd.DataFrame) -> float:
+    """
+        Gets the length of a specific line from the branch dataframe
+    Args:
+        pole1_id: An ID if a pole that is connected by the line in qyuestion
+        pole2_id: An ID of another pole that connects the line
+        branch_df: A subset of the networklines dataframe filtered by branch
+
+    Returns:
+        float: The length in meters of the line
+    """
     # result1 = branch_df.query(f'`Node 1` == "{pole1_id}" and `Node 2` == "{pole2_id}"')["Length"].tolist()
     result1 = branch_df.query(f'`Pole_ID_From` == "{pole1_id}" and `Pole_ID_To` == "{pole2_id}"')["adj_length"].tolist()
     # result2 = branch_df.query(f'`Node 2` == "{pole1_id}" and `Node 1` == "{pole2_id}"')["Length"].tolist()
@@ -97,6 +159,17 @@ def get_line_length(pole1_id: str, pole2_id: str, branch_df: pd.DataFrame) -> fl
 
 def generate_digraph_edges(first_pole_id: str, filtered_df: pd.DataFrame, poles: list[Pole],
                            line_type: LineType) -> list:
+    """
+        Creates edges of an nx.DiGraph to create a SubNetwork or Network
+    Args:
+        first_pole_id: The id of the root pole in the graph
+        filtered_df:  A subset of the networklines dataframe
+        poles: A list of pole objects
+        line_type: LV or MV
+
+    Returns:
+`       list: list of edges of the graph
+    """
     next_poles = get_next_pole(first_pole_id, filtered_df)
     if len(next_poles) == 0:
         VISITED_POLES.append(first_pole_id)
@@ -140,6 +213,15 @@ def update_branch_name(branch_name: str, subnetwork_name: str) -> str:
 
 
 def create_subnetworks_from_df(networklines_df: pd.DataFrame, poles: list[Pole]) -> list[SubNetwork]:
+    """
+     Creates model.SubNetwork objects for the entire network
+    Args:
+        networklines_df: dataframe with all nodes of a network
+        poles: a list pole of models.Pole objects of a network
+
+    Returns:
+        list[SubNetwork]: A list of models.SubNetwork objects of a network.
+    """
     networklines_df = networklines_df.dropna()
 
     subnetwork_column = networklines_df["SubNetwork"].to_list()
@@ -149,7 +231,7 @@ def create_subnetworks_from_df(networklines_df: pd.DataFrame, poles: list[Pole])
     for i in range(len(branch_column)):
         branch_names.append(update_branch_name(branch_column[i], subnetwork_column[i]))
     branch_names = list(set(branch_names))
-    branch_names = [b for b in branch_names if b[-2] !="M"]
+    branch_names = [b for b in branch_names if b[-2] != "M"]
     branch_names.sort()
 
     subs = list(set(subnetwork_column))
@@ -200,6 +282,16 @@ def create_subnetworks_from_df(networklines_df: pd.DataFrame, poles: list[Pole])
 
 
 def create_mv_net_from_df(poleclasses_df: pd.DataFrame, networklines_df: pd.DataFrame, poles: list[Pole]) -> MVNetwork:
+    """
+        Creates an MVNetwork for the network
+    Args:
+        poleclasses_df:  dataframe with pole details including coordinates and whether they are LV or MV poles
+        networklines_df: dataframe with all nodes of a network
+        poles: a list of models.Pole objects in the network
+
+    Returns:
+        MVNetwork: the MV Network
+    """
     networklines_df = networklines_df.dropna()
 
     # Get gen site pole id
@@ -219,23 +311,52 @@ def create_mv_net_from_df(poleclasses_df: pd.DataFrame, networklines_df: pd.Data
 
 
 def output_voltage_to_gdf(poles: list[Pole]) -> gpd.GeoDataFrame:
+    """
+        Creates a geoDataFrame of poles with their voltages
+    Args:
+        poles: a list of models.Pole objects
+
+    Returns:
+        gpp.GeoDataFrame: a GeoPandas Dataframe with pole ids, voltages and other details
+    """
     dataframe = pd.DataFrame.from_records([p.to_dict() for p in poles])
-    # print(dataframe)
     geodataframe = gpd.GeoDataFrame(dataframe, geometry=gpd.points_from_xy(dataframe.Longitude, dataframe.Latitude))
     return geodataframe
 
 
-def output_voltage_to_excel(dataframe: pd.DataFrame, village_name: str):
+def output_voltage_to_excel(dataframe: pd.DataFrame, village_name: str) -> str:
+    """
+        Exports voltage dataframe to a timestamped Excel file
+    Args:
+        dataframe: Voltage dataframe
+        village_name: name of village
+
+    Returns:
+        str: The path of the Excel file output
+    """
     now = datetime.datetime.now()
-    dataframe.to_excel(f'outputs/{village_name}_Voltage{now.strftime("%Y_%m_%d_%H_%M_%S")}.xlsx')
+    output_path = f'{OUTPUT_DIRECTORY}/{village_name}_Voltage{now.strftime("%Y_%m_%d_%H_%M_%S")}.xlsx'
+    dataframe.to_excel()
+    return output_path
 
 
-def output_to_kml(kml_dir: str, filename: str, dataframe: gpd.GeoDataFrame):
+def output_to_kml(kml_dir: str, filename: str, dataframe: gpd.GeoDataFrame) -> str:
+    """
+        Export network layout as KML file
+    Args:
+        kml_dir: Directory to save KML files
+        filename: Output filename
+        dataframe: a GeoPandas dataframe
+
+    Returns:
+        str: Full path of the KML file
+    """
     dataframe.rename({"pole_id": "name"})
     output_kml_file_path = os.path.join(kml_dir, filename)
     fiona.supported_drivers['KML'] = 'rw'
     with fiona.Env():
         dataframe.to_file(output_kml_file_path, driver='KML')
+    return output_kml_file_path
 
     # with open(output_kml_file_path) as f:
     #     root = pk.parse(f)
@@ -269,20 +390,49 @@ def output_to_kml(kml_dir: str, filename: str, dataframe: gpd.GeoDataFrame):
     #     output.write(string)
 
 
-def filter_network_df(networklines_df: pd.DataFrame) -> pd.DataFrame:
+def filter_network_df_by_type(networklines_df: pd.DataFrame, type: PoleType) -> pd.DataFrame:
+    """
+        Filter network dataframe by voltage size
+    Args:
+        networklines_df: dataframe with all network nodes' IDs
+        type: MV or LV
+
+    Returns:
+        pd.DataFrame: the filtered dataframe
+    """
     networklines_df = networklines_df.dropna()
-    mv_line_df = networklines_df[networklines_df["Type"].str.contains("MV")]
+    mv_line_df = networklines_df[networklines_df["Type"].str.contains(type.value)]
     return mv_line_df
 
 
 def get_gen_site(net_inputs_df: pd.DataFrame, village_id: str) -> GenerationSite:
+    """
+        Gets the gen_site_id from inputs
+    Args:
+        net_inputs_df: network inputs dataframe
+        village_id: the village id
+
+    Returns:
+        GenerationSite: models.GenerationSite object
+    """
     latitude = net_inputs_df['lat_Generation'][0]
     longitude = net_inputs_df['long_Generation'][0]
     return GenerationSite(gen_site_id=f"{village_id}_GEN_01", latitude=latitude, longitude=longitude)
 
 
 def add_dropcon_ids(conn_input: pd.DataFrame, conn_output: pd.DataFrame, droplines: pd.DataFrame,
-                    NetworkLines_output: pd.DataFrame):
+                    NetworkLines_output: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """
+        Updates uGridNet output to include connection IDs for droplines
+    Args:
+        conn_input: dataframe with connections from the input file.
+        conn_output: dataframe with connections from ClassifyNetwork function
+        droplines: dataframe with droplines properties from the ClassifyNetwork function
+        NetworkLines_output: dataframe with networklines from the ClassifyNetwork function
+
+    Returns:
+        tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]: updated connections, droplines and networklines outputs
+    """
     conn_ids = []
 
     # Add the connections IDs to ugridnet output file
@@ -323,6 +473,14 @@ def add_dropcon_ids(conn_input: pd.DataFrame, conn_output: pd.DataFrame, droplin
 
 
 def determine_transformer_size(subnetwork: SubNetwork) -> int | None:
+    """
+        Evaluates the best size of transformer to use in a subnetwork
+    Args:
+        subnetwork: The subnetwork to be evaluated
+
+    Returns:
+        int: The size in kVA of the selected transformer
+    """
     current = subnetwork.get_current()
     power = (current * HOUSEHOLD_CURRENT) / 1000
 
