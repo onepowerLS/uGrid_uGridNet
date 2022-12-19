@@ -1,11 +1,20 @@
+# -*- coding: utf-8 -*-
+
+
+"""
+    The following module defines the objects that model some important entities in the network layout
+"""
 from enum import Enum
 
 import networkx as nx
 
-from constants import NOMINAL_LV_VOLTAGE, NOMINAL_MV_VOLTAGE
+from constants import *
 
 
 class ReticulationNetworkNode:
+    """
+        A
+    """
     longitude = 0
     latitude = 0
 
