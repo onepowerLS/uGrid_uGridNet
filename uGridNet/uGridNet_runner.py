@@ -297,7 +297,9 @@ def ClusterTransformerCusts(indexes_conn, d_EW_between, d_NS_between, num_trans,
 # Initial Placement of LV connection poles 
 def LVPolesPlacement(customer_clusters, d_EW_between, d_NS_between, index_excl_comp,
                      range_limit, max_x, max_y, max_d_BW_pole_conn):
+    # print(customer_clusters)
     poles_loc = []
+    # print(f"There are {len(customer_clusters)} clusters")
     for cluster in customer_clusters:
         clust = cluster * np.array([d_EW_between, d_NS_between])
         n_clusters = max(1, len(clust) // 6 + 1)  # Determine the intial pole number
@@ -322,7 +324,11 @@ def LVPolesPlacement(customer_clusters, d_EW_between, d_NS_between, index_excl_c
             x, y = FindNonExclusionSpot(pt[0], pt[1], index_excl_comp, range_limit,
                                         max_y, max_x)
             poles[k, :] = np.array([x, y])
+        # print(f"There are {len(poles)} in this cluster")
         poles_loc.append(poles)
+
+    # print(f" Clusters are equal? {len(customer_clusters) == len(poles_loc)}")
+    # print(poles_loc)
     return poles_loc
 
 
@@ -649,7 +655,6 @@ def IntermediatePoles(indexes, OnOff_, d_BW_Poles, d_BW_Adj_Poles, index_excl_co
             x, y = pt[0], pt[1]
             # x, y = FindNonExclusionSpot(pt[0], pt[1], index_excl_comp, range_limit, max_y, max_x)
             new_pairs[i, :] = np.array([x, y])
-
     return new_pairs
 
 
@@ -1104,6 +1109,7 @@ def MatchConnectionsPoleID(pole_classes, droplines, connections, d_EW_between, d
 # ==============================================================================
 #  Evaluate the network segment the lines belong to
 def NetworkLinesID(networklines):
+    # print(networklines)
     networklines.dropna()
     linetypes = networklines.Type.values.tolist()
     ID_from = networklines.Pole_ID_From.values.tolist()
@@ -1149,7 +1155,7 @@ def ClassifyNetworkPoles(gen_LAT, gen_LON, gen_site_indexes,
 
     AngleClasses = pd.DataFrame()
     network_length = gpd.GeoDataFrame()
-    print(network_length)
+    # print(network_length)
     basen = f"{VILLAGE_ID}_M"
     gen_index = gen_site_indexes
     if not list(MV_Pole_indexes):
@@ -1523,7 +1529,7 @@ def ConcessionDetails(dfpoles, dfnet, dfdropline, dfcosts, connections, voltaged
     dfdropline.plot(lw=0.5, ax=ax, color='red', legend=False)
     dfnet[dfnet.Type != "MV"].plot(column="Type", lw=0.7, ax=ax, legend=False)
     dfnet[dfnet.Type == "MV"].plot(lw=1, ax=ax, color='blue', legend=False)
-    plt.savefig(FULL_VILLAGE_NAME + '.png')
+    plt.savefig(f"{OUTPUT_DIRECTORY}/{FULL_VILLAGE_NAME}.png")
     ws.add_image(img(FULL_VILLAGE_NAME + '.png'), 'B4')
 
     ws = wb['NetworkCost']
@@ -1821,7 +1827,7 @@ def SimulateNetwork(site_properties,
                 g_new = IntermediatePoles(g, OnOff, distances, MaxDistancePoleLV,
                                           indexes_excl, range_limit, max_y, max_x)
                 all_LV_Poles.append(g_new)
-
+            print(len(all_LV_Poles) == num_trans)
             # Calculate HV Wiring Layout
             # Find POI of generation
             ccc = POI_Pole(lat_Generation, long_Generation, Long_exc_min, Lat_exc_min,
@@ -1864,6 +1870,8 @@ def SimulateNetwork(site_properties,
                 vals = voltage_drop_df.loc[j].values
                 # print(vals)
                 if 'Pass' in vals:
+                    pass
+                elif 'MV' in vals:
                     pass
                 else:
                     # print("Network Failed!")

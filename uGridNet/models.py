@@ -29,15 +29,6 @@ class GenerationSite(ReticulationNetworkNode):
         self.gen_site_id = gen_site_id
 
 
-class Connection(ReticulationNetworkNode):
-
-    def __init__(self, site_number: str, connection_type: str, hh_pp: int, latitude: float = 0, longitude: float = 0):
-        super().__init__(latitude, longitude)
-        self.site_number = site_number
-        self.connection_type = connection_type
-        self.hh_pp = hh_pp
-
-
 class PoleType(Enum):
     MV = "MV"
     LV = "LV"
@@ -65,6 +56,21 @@ class Pole(ReticulationNetworkNode):
             'Latitude': self.latitude,
             'Longitude': self.longitude
         }
+
+
+class Connection(ReticulationNetworkNode):
+    pole: Pole = None
+
+    def __init__(self, site_number: str, connection_type: str, hh_pp: int = 0, latitude: float = 0,
+                 longitude: float = 0):
+        super().__init__(latitude, longitude)
+        self.site_number = site_number
+        self.connection_type = connection_type
+        self.hh_pp = hh_pp
+
+    def get_name(self) -> str:
+        number = self.site_number.replace("_", " ")
+        return f"{number} {self.connection_type}"
 
 
 class LineType(Enum):

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from util import *
+from constants import *
 
 
 def calculate_current(pole: Pole, branch: Branch) -> float:
@@ -206,7 +207,6 @@ def network_calculations(
             sub.get_current()  # Update the current calculation for the subnetwork
 
     results_list.append(mv_results)  # Add MV results to the bottom of the list
-
     v_drop_df = v_drop_df.append(results_list, ignore_index=True, sort=False)  # Add the results to the dataframe
 
     # Transformer Calculations
@@ -321,17 +321,16 @@ def network_calculations(
 
 if __name__ == "__main__":
     # file = "RIB_SC_uGridPlan.xlsx"\
-    village = "RIB_86"
+    village = VILLAGE_ID
     # file = f"outputs/{village}/{village}/{village}/SEB_07_Moseneke_20220429_0907_uGrid.xlsx"
-    file = "C:/Users/ONEPOWER ADMIN/PycharmProjects/uGrid_uGridNet/uGridNet/outputs/RIB_86_Ha_Nthonyana" \
-           "/RIB_86_Ha_Nthonyana/20220617_1155_RIB_uGrid_86_.xlsx "
+    file = "/home/ee/Projects/uGrid_uGridNet/uGridNet/TOS_11_Selomong/TOS_11_Selomong/TOS_11_Selomong_20221219_1142_uGridNet_Output.xlsx"
     networklines = pd.read_excel(file, sheet_name="NetworkLength")
     poleclasses_df = pd.read_excel(file, sheet_name="PoleClasses")
     droplines = pd.read_excel(file, sheet_name="DropLines")
-    net_inputs = pd.read_excel(
-        "C:/Users/ONEPOWER ADMIN/PycharmProjects/uGrid_uGridNet/uGridNet/outputs/RIB_86_Ha_Nthonyana"
-        "/RIB_86_Ha_Nthonyana" + '_uGrid_Input.xlsx',
-        sheet_name='Net')
+    # net_inputs = pd.read_excel(
+    #     "C:/Users/ONEPOWER ADMIN/PycharmProjects/uGrid_uGridNet/uGridNet/outputs/RIB_86_Ha_Nthonyana"
+    #     "/RIB_86_Ha_Nthonyana" + '_uGrid_Input.xlsx',
+    #     sheet_name='Net')
 
     poles = create_pole_list_from_df(poleclasses_df, droplines)
     #
@@ -340,7 +339,7 @@ if __name__ == "__main__":
                                         droplines_df=droplines)
 
     # print(costs)
-    costs.to_excel("Costs1.xlsx")
+    # costs.to_excel("Costs1.xlsx")
     # now = datetime.datetime.now()
     # dataframe = output_voltage_to_gdf(poles)
     # output_voltage_to_excel(dataframe, village)

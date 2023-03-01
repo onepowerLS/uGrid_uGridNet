@@ -90,6 +90,25 @@ def create_pole_list_from_df(poleclasses_df: pd.DataFrame, droplines_df: pd.Data
     return poles
 
 
+def create_connections_list_from_input_xlsx() -> list[Connection]:
+    connections_df = pd.read_excel(f"{INPUT_DIRECTORY}/{FULL_VILLAGE_NAME}_connections.xlsx")
+    connection_names = connections_df.Name.tolist()
+    connection_ids = [f"{CONCESSION}_{name.split(' ')[1]}" for name in connection_names]
+    connection_types = [f"{name.split(' ')[2]}" for name in connection_names]
+    latitudes = connections_df.Latitude.tolist()
+    longitudes = connections_df.Longitude.tolist()
+
+    connections = []
+    for i in range(len(connection_ids)):
+        new_conn = Connection(site_number=connection_ids[i],
+                              connection_type=connection_types[i],
+                              latitude=latitudes[i],
+                              longitude=longitudes
+                              )
+        connections.append(new_conn)
+    return connections
+
+
 def get_pole_from_list(pole_id: str, poles: list[Pole]) -> Pole | None:
     """
         Gets a pole object with a matching id from a list of poles
@@ -117,6 +136,7 @@ def get_next_pole(pole_id: str, branch_df: pd.DataFrame) -> list[str]:
     Returns:
         list[str]: IDs of poles that are directly connected downstream from pole_id
     """
+
     VISITED_POLES.append(pole_id)
     result_df = branch_df[
         # (branch_df["Node 2"] == pole_id) | (branch_df["Node 1"] == pole_id)]
@@ -126,7 +146,8 @@ def get_next_pole(pole_id: str, branch_df: pd.DataFrame) -> list[str]:
     next_pole_id = list(set(next_pole_id))
     if pole_id in next_pole_id:
         next_pole_id.remove(pole_id)
-    return [p for p in next_pole_id if p not in VISITED_POLES]
+    next_poles = [p for p in next_pole_id if p not in VISITED_POLES]
+    return next_poles
 
 
 def get_line_length(pole1_id: str, pole2_id: str, branch_df: pd.DataFrame) -> float:
@@ -412,14 +433,14 @@ def get_gen_site(net_inputs_df: pd.DataFrame, village_id: str) -> GenerationSite
 
 
 def add_dropcon_ids(conn_input: pd.DataFrame, conn_output: pd.DataFrame, droplines: pd.DataFrame,
-                    NetworkLines_output: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+                    networkLines_output: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
         Updates uGridNet output to include connection IDs for droplines
     Args:
         conn_input: dataframe with connections from the input file.
         conn_output: dataframe with connections from ClassifyNetwork function
         droplines: dataframe with droplines properties from the ClassifyNetwork function
-        NetworkLines_output: dataframe with networklines from the ClassifyNetwork function
+        networkLines_output: dataframe with networklines from the ClassifyNetwork function
 
     Returns:
         tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]: updated connections, droplines and networklines outputs
@@ -455,12 +476,12 @@ def add_dropcon_ids(conn_input: pd.DataFrame, conn_output: pd.DataFrame, droplin
     # Append the village Number to Subnetwork
     for i in range(len(droplines)):
         droplines.loc[i, 'SubNetwork'] = village_number + droplines.loc[i, 'SubNetwork']
-    for i in range(len(NetworkLines_output)):
-        if NetworkLines_output.loc[i, 'SubNetwork'] != '' and NetworkLines_output.loc[i, 'SubNetwork'] != 'M':
-            NetworkLines_output.loc[i, 'SubNetwork'] = village_number + str(
-                NetworkLines_output.loc[i, 'SubNetwork'])
+    for i in range(len(networkLines_output)):
+        if networkLines_output.loc[i, 'SubNetwork'] != '' and networkLines_output.loc[i, 'SubNetwork'] != 'M':
+            networkLines_output.loc[i, 'SubNetwork'] = village_number + str(
+                networkLines_output.loc[i, 'SubNetwork'])
             # export the modified data to the new excel file
-    return conn_output, droplines, NetworkLines_output
+    return conn_output, droplines, networkLines_output
 
 
 def determine_transformer_size(subnetwork: SubNetwork) -> int | None:
@@ -489,5 +510,24 @@ def determine_transformer_size(subnetwork: SubNetwork) -> int | None:
 
 
 if __name__ == "__main__":
-    net_lines = pd.read_excel("4_2022-12-15 14:05:31.651500_transformers.xlsx")
-    create_subnetworks_from_df(networklines_df=net_lines, poles=[])
+    # net_lines = pd.read_excel("4_2022-12-15 14:05:31.651500_transformers.xlsx")
+    # create_subnetworks_from_df(networklines_df=net_lines, poles=[])
+    file = "/home/ee/Projects/uGrid_uGridNet/uGridNet/TOS_11_Selomong/TOS_11_Selomong/TOS_11_Selomong_20221219_1142_uGridNet_Output.xlsx"
+    droplines = pd.read_excel(file, sheet_name="DropLines")
+    droplines = droplines.dropna()
+    connections = create_connections_list_from_input_xlsx()
+    num_droplines = len(droplines)
+    num_connections = len(connections)
+
+    print(f'There are {num_droplines} droplines')
+    print(f'There are {num_connections} connections')
+
+    print(num_droplines == num_connections)
+
+    for i in range(len(connections)):
+        conn = connections[i]
+        print(conn.get_name())
+        print(droplines.loc[droplines['DropConnID'] == conn.get_name(), 'DropPoleID'].iloc[0])
+        print(conn.site_number)
+        # print(conn.connection_type)
+        print("\n")
