@@ -1,21 +1,17 @@
 """
 Full Year Energy Calculator
 
-This contains functions and algorithms to calculate battery energy demand for each hour of each day of the year when solar PVs are not expected to be generating any electricity (i.e, overning demand). This is commonly known as the full year energy demand. 
+This contains functions and algorithms to calculate battery energy demand for each hour of each day of the year when solar PVs are not expected to be generating any electricity (i.e, overnight demand). This is commonly known as the full year energy demand. 
 
 @author: Thabo Monoto
 """
 
 import sys
-# get_ipython().system('$sys.executable -m pip install numpy pandas matplotlib seaborn requests mat4py openpyxl ')
 
 import os
 import pandas as pd
 import numpy as np
 from itertools import product
-import matplotlib as plt
-# from IPython.core.debugger import set_trace
-import pdb
 import itertools as it
 import glob
 from constants import SITE_NAME
