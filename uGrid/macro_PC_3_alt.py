@@ -304,6 +304,7 @@ if __name__ == "__main__":
     #print(gB_Size_costing_parameters)
 
     filename_xlsx = sitename + "_uGrid_Output_"+PSO_Parameters['output_name'][0]+".xlsx"
+    print(filename_xlsx)
     #list = [Cost_EPC, Cost_Dist, Cost_BOS, Cost_bank, C1_LPG, Cost_inv, Cost_panels, Cost_EPC_tracker, C1_pv]
     #gB_cost_parameters = pd.DataFrame(list, columns = ['Subtotal'])
     #print(gB_cost_parameters)
@@ -340,7 +341,7 @@ if __name__ == "__main__":
     #write these values in the subtotals column, H
     simdate = dt.datetime.today()
     add0 = lambda x: '0'+str(x) if x < 10 else str(x)
-    wb = load_workbook(sitename + '_uGrid_Output_alt.xlsx')
+    wb = load_workbook(filename_xlsx)
     ws = wb["Sizing_Costing"]
     
     ws['H2'] = panels_opt[-1]
