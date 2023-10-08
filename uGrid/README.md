@@ -38,6 +38,6 @@ The uGrid tool needs the following tools for it to work
 You can install them using pip install, either globally (not recommended), or in a virtual environment (recommended)
 
 ## Using the tool:
-Ensure that all input files and code files are in the same working directory
-Use a console (e.g. terminal, command prompt) to navigate to the working directory
+Ensure that all input files and code files are in the same working directory  
+Use a console (e.g. terminal, command prompt) to navigate to the working directory  
 Run:  python3 macro_PC_3_alt.py XXX (where XXX denotes the area of interest and matches the input files (XXX of the input files))
