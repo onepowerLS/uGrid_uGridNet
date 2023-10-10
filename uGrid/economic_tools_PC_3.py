@@ -73,6 +73,7 @@ def mcashflow(tariff_hillclimb_multiplier,lifetime,f_pv,a_pv,f,a,Batt_life_yrs, 
  
     while not all(i > 0 for i in CashonHand[1:]): #continue loop until all values in CashonHand[1:] are greater than 0
         tariff = tariff*tariff_hillclimb_multiplier #" Increase the tariff until the cash flows are positive "
+        print(f'Hill-climb Multiplier: {tariff_hillclimb_multiplier}, Tariff: {tariff} ')
         for j in range(1,lifetime):
             #"Revenue is a function of the energy supplied to off takers at the tariff rate"
             Revenue[j]= loadkWh * tariff   
@@ -150,7 +151,7 @@ def Econ_total(propane_kg, PVkW,BattKWh,Batt_kWh_tot,peakload,loadkWh):
 
     #print "Tariff is " + str(tariff)
 
-    return LoanPrincipal, year, Cost, Revenue, CashonHand, Balance, M, O, tariff, Batt_life_yrs, Cost_EPC, Cost_Dist, Cost_BOS, Cost_bank, C1_LPG, Cost_inv, Cost_panels, Cost_EPC_tracker, Cost_labour, C1_pv, PVkW    
+    return LoanPrincipal, year, Cost, Revenue, CashonHand, Balance, M, O, tariff, Batt_life_yrs, Cost_EPC, Cost_Dist, Cost_BOS, Cost_bank, C1_LPG, Cost_inv, Cost_panels, Cost_EPC_tracker, Cost_labour, C1_pv, PVkW
     
 ##===============================================================================================
     

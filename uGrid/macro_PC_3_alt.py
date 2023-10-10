@@ -153,6 +153,7 @@ if __name__ == "__main__":
             #calculate technical parameters
             Propane_ec[m,iteration], Batt_SOC, LoadkW, P_gen, P_PV, P_batt, P_dump,Limit_charge, Limit_discharge, BattkW, Batt_kWh_tot_ec[m,iteration],loadkWh,peakload = Tech_total(Parameters[0,m,iteration],Parameters[1,m,iteration])
             print('Battery KW: ' + str(BattkW))
+            print('Peak Load: ', peakload)
             #don't need to save Gt_panel, final, Batt_SOC, and Charge these are used to validate program
             LoanPrincipal, year, Cost, Revenue, CashonHand, Balance, M, O, tariff[m,iteration], Batt_life_yrs[m,iteration], Cost_EPC, Cost_Dist, Cost_BOS, Cost_bank, C1_LPG, Cost_inv, Cost_panels, Cost_EPC_tracker, Cost_labour, C1_pv, PVkW= Econ_total(Propane_ec[m,iteration],Parameters[1,m,iteration]*peakload,Parameters[0,m,iteration]*peakload,Batt_kWh_tot_ec[m,iteration],peakload,loadkWh)
             #order of parameters: batt, PV, CSP, ORC, TES_ratio

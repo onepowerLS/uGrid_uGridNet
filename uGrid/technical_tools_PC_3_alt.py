@@ -10,11 +10,11 @@ for the uGrid tool.
 from __future__ import division
 import numpy as np
 import pandas as pd
+import glob
 import math
 import matplotlib.pyplot as plt
 from full_year_energy import * 
 from constants import SITE_NAME
-import glob
 
 
 # from numba import jit
@@ -255,45 +255,45 @@ def PlotPowerFlows(P_PV, P_Batt, P_PG, P_dump, SOC, LoadkW, t1, t2, BattkW, Limi
     # and the ending time t2.
 
     time = list(range(t1, t2))
-    fig, ax = plt.subplots()
-    ax.set_xlabel('time (h)')
-    ax.set_ylabel('P (kW)')
-    ax.plot(time, P_PV[t1:t2], color='green', linewidth=1)
-    ax.plot(time, P_Batt[t1:t2], color='blue', linewidth=1)
-    ax.plot(time, P_PG[t1:t2], color='red', linewidth=1)
-    ax.plot(time, P_dump[t1:t2], color='cyan', linewidth=1)
-    ax.plot(time, LoadkW[t1:t2], color='black', linewidth=1)
-    ax.legend(['PV', 'Battery', 'PG', 'Dump', 'Load'])
-    plt.xlim(t1, t2 - 1)
-    plotname = "PowerFlows_JULY.png"
-    plt.savefig(plotname, dpi=600)
-    plt.show()
-
-    SOC = np.array(SOC) / BattkW * 100
-    Limit_discharge = np.ones(len(SOC)) * Limit_discharge
-    Limit_charge = np.ones(len(SOC)) * -Limit_charge
-    Zerosss = np.zeros(len(SOC))
-
-    f, axarr = plt.subplots(2, sharex=True)
-    axarr[0].set_xlabel('time (h)')
-    axarr[0].set_ylabel('P (kW)')
-    axarr[0].plot(time, P_Batt[t1:t2], color='blue', linewidth=1)
-    axarr[0].plot(time, Limit_discharge[t1:t2], color='black', linewidth=1, linestyle='dashed')
-    axarr[0].plot(time, Limit_charge[t1:t2], color='black', linewidth=1, linestyle='dashed')
-    axarr[0].plot(time, Zerosss[t1:t2], color='black', linewidth=1, linestyle=':')
-
-    # ax.tick_params(axis='y',labelcolor = 'blue')
-
-    axarr[1].plot(time, SOC[t1:t2], color='orange', linewidth=1)
-    axarr[1].set_ylabel('SOC %')
-    plt.ylim(-5, 105)
-    # ax2.tick_params(axis='y',labelcolor = 'orange')
-    # plt.legend(['Battery','SOC'])
-    f.subplots_adjust(hspace=0)
-    plt.xlim(t1, t2 - 1)
-    plotname = "Battery_SOC_JULY.png"
-    plt.savefig(plotname, dpi=600)
-    plt.show()
+    # fig, ax = plt.subplots()
+    # ax.set_xlabel('time (h)')
+    # ax.set_ylabel('P (kW)')
+    # ax.plot(time, P_PV[t1:t2], color='green', linewidth=1)
+    # ax.plot(time, P_Batt[t1:t2], color='blue', linewidth=1)
+    # ax.plot(time, P_PG[t1:t2], color='red', linewidth=1)
+    # ax.plot(time, P_dump[t1:t2], color='cyan', linewidth=1)
+    # ax.plot(time, LoadkW[t1:t2], color='black', linewidth=1)
+    # ax.legend(['PV', 'Battery', 'PG', 'Dump', 'Load'])
+    # plt.xlim(t1, t2 - 1)
+    # plotname = "PowerFlows_JULY.png"
+    # plt.savefig(plotname, dpi=600)
+    # plt.show()
+    #
+    # SOC = np.array(SOC) / BattkW * 100
+    # Limit_discharge = np.ones(len(SOC)) * Limit_discharge
+    # Limit_charge = np.ones(len(SOC)) * -Limit_charge
+    # Zerosss = np.zeros(len(SOC))
+    #
+    # f, axarr = plt.subplots(2, sharex=True)
+    # axarr[0].set_xlabel('time (h)')
+    # axarr[0].set_ylabel('P (kW)')
+    # axarr[0].plot(time, P_Batt[t1:t2], color='blue', linewidth=1)
+    # axarr[0].plot(time, Limit_discharge[t1:t2], color='black', linewidth=1, linestyle='dashed')
+    # axarr[0].plot(time, Limit_charge[t1:t2], color='black', linewidth=1, linestyle='dashed')
+    # axarr[0].plot(time, Zerosss[t1:t2], color='black', linewidth=1, linestyle=':')
+    #
+    # # ax.tick_params(axis='y',labelcolor = 'blue')
+    #
+    # axarr[1].plot(time, SOC[t1:t2], color='orange', linewidth=1)
+    # axarr[1].set_ylabel('SOC %')
+    # plt.ylim(-5, 105)
+    # # ax2.tick_params(axis='y',labelcolor = 'orange')
+    # # plt.legend(['Battery','SOC'])
+    # f.subplots_adjust(hspace=0)
+    # plt.xlim(t1, t2 - 1)
+    # plotname = "Battery_SOC_JULY.png"
+    # plt.savefig(plotname, dpi=600)
+    # plt.show()
 
 ##====================================================================
 def get_8760(village_name):
@@ -347,7 +347,9 @@ def Tech_total(BattkWh_Parametric, PVkW_Parametric):
 
     # Input Calculations
     #print(load)
-    peakload = max(load['kW']) * Tech_Parameters['peakload_buffer'][0]  # "maximum power output of the load curve [kW]"
+    #old_peak_load = np.max(load['kW']) * Tech_Parameters['peakload_buffer'][0]
+    peakload = (np.mean(load['kW']) + 2*np.std(load['kW'])) * Tech_Parameters['peakload_buffer'][0]  # "maximum power output of the load curve [kW]"
+    #print(f'Peakload: {peakload}, Older calculation: {old_peak_load}, Mean: {np.mean(load["kW"])}, Standard Deviation: {np.std(load["kW"])}, New Peak: {np.mean(load["kW"]) + 2*np.std(load["kW"])}')
     BattkWh = BattkWh_Parametric * peakload  # "[kWh]"
     loadkWh = sum(load['kW'])
     PVkW = PVkW_Parametric * peakload  # "[kW]"
