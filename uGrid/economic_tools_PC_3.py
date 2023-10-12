@@ -32,7 +32,7 @@ def mcashflow(tariff_hillclimb_multiplier,lifetime,f_pv,a_pv,f,a,Batt_life_yrs, 
     O = np.zeros(lifetime)
     tariff = np.copy(LEC) # "USD/kWh tariff for electricity"
     Batt_penalty = 0
-	
+
     LoanPrincipal[0] = ((C1_pv+C1_LPG)*loanfactor)*(1-equity_debt_ratio)   #"The amount of project finance needed to cover capex and initial opex"
     LoanPrincipal[1] = np.copy(LoanPrincipal[0])
     CashonHand[0] = equity_debt_ratio*((C1_pv+C1_LPG)*loanfactor)+ LoanPrincipal[0]-(C1_pv+C1_LPG)
@@ -61,19 +61,18 @@ def mcashflow(tariff_hillclimb_multiplier,lifetime,f_pv,a_pv,f,a,Batt_life_yrs, 
         Modulo = j % Batt_life_yrs #find the remainder
         if Modulo == 0:
             Cost[j] = Cost[j] + Cost_bank + 2 * Cost_bank * Batt_penalty	
-	
-	    #  "add interest and debit the finance charge from the principal"
+
+        #  "add interest and debit the finance charge from the principal"
         if j > 0:
             LoanPrincipal[j] = LoanPrincipal[j-1] * (1 + interest_rate) - finance
- 		
-	    #"if the loan is paid off THEN there no finance charge"
+
+        #"if the loan is paid off THEN there no finance charge"
         if LoanPrincipal[j] <=0:
-            Cost[j] = Cost[j] + LoanPrincipal[j]	
+            Cost[j] = Cost[j] + LoanPrincipal[j]
             LoanPrincipal[j] = 0
- 
+
     while not all(i > 0 for i in CashonHand[1:]): #continue loop until all values in CashonHand[1:] are greater than 0
         tariff = tariff*tariff_hillclimb_multiplier #" Increase the tariff until the cash flows are positive "
-        print(f'Hill-climb Multiplier: {tariff_hillclimb_multiplier}, Tariff: {tariff} ')
         for j in range(1,lifetime):
             #"Revenue is a function of the energy supplied to off takers at the tariff rate"
             Revenue[j]= loadkWh * tariff   
@@ -83,7 +82,7 @@ def mcashflow(tariff_hillclimb_multiplier,lifetime,f_pv,a_pv,f,a,Batt_life_yrs, 
 
     return LoanPrincipal, year, Cost, Revenue, CashonHand, Balance, M, O, tariff
 ###================================================================================================		
-	
+
  
 ## Econ_total function ===========================================================================
 def Econ_total(propane_kg, PVkW,BattKWh,Batt_kWh_tot,peakload,loadkWh):    
