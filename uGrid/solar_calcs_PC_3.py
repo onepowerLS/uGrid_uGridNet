@@ -274,35 +274,106 @@ def GetTheta(declin,latitude,hrang,slope,azimuth):
 # =============================================================================
  
 ## Calc Global Radiation Incident on PV Array ================================
-def GetGT(G,slope, pg, theta, zenetr, declin, latitude,daynum):
-# This function calculates the global radiation incident on the solar panels.
+
+def GetGT(G, slope, pg, theta, zenetr, declin, latitude, longitude, daynum, th_hour, timezone, year):
+    import pdb
     if G != 0:
-        G = G/1000
-        Gsc = 1.367 #the solar constant [kW/m2]
-        Gon = Gsc*(1+0.033*m.cos(m.radians(360*daynum/365)))
-        Go = Gon*m.cos(m.radians(zenetr))
-        kt = G/Go #G is GHI from TMY datasets
+        G = G / 1000  # Convert G to kW/m^2
+        Gsc = 1.367  # Solar constant [kW/m^2]
+        Gon = Gsc * (1 + 0.033 * m.cos(m.radians(360 * daynum / 365)))  # Extraterrestrial normal radiation
+        Go = Gon * m.cos(m.radians(zenetr))  # Extraterrestrial radiation on a horizontal surface
+        kt = G / Go  # Clearness index
+
         if kt <= 0.22:
-            Gd = (1-0.09*kt)*G
+            Gd = (1 - 0.09 * kt) * G  # Diffuse radiation for clearness index kt <= 0.22
         elif kt > 0.22 and kt <= 0.8:
-            Gd = (0.9511-0.1604*kt+4.388*kt**2-16.638*kt**3+12.336*kt**4)*G
+            Gd = (0.9511 - 0.1604 * kt + 4.388 * kt ** 2 - 16.638 * kt ** 3 + 12.336 * kt ** 4) * G
         elif kt > 0.8:
-            Gd = 0.165*G
-        Gb = G - Gd   
-        Rb = m.cos(m.radians(theta))/m.cos(m.radians(zenetr))
-        Ai = Gb/Go
-        #Catch roundoff errors, so irradiance stays >=0
-        if Gd < 0:
-            Gd = 0
-        if Gb < 0:
-            Gb = 0
-        f = m.sqrt(Gb/G)
-        Gt = (Gb + Gd*Ai)*Rb + Gd*(1-Ai)*((1+m.cos(m.radians(slope)))/2)*(1+f*(m.sin(m.radians(slope/2))**3))+G*pg*((1-m.cos(m.radians(slope)))/2)
+            Gd = 0.165 * G  # Diffuse radiation for clearness index kt > 0.8
+
+        Gb = G - Gd  # Beam radiation
+
+        if slope == 99:
+            #pdb.set_trace()
+            #print("I am here!")
+            # Special handling for East-West tracking array
+            hrang, declin, _ = NRELTheta(year, th_hour, longitude, latitude, timezone)
+            zenetr = SolarZenith(declin, latitude, hrang)
+            tracking_theta = calculate_east_west_tracking_theta(latitude, declin, hrang)
+
+            # For tracking systems, beam radiation is calculated using the tracking theta
+            Gb = G * m.cos(m.radians(tracking_theta))
+
+            # Adjusted calculation for Gr in tracking systems
+            solar_elevation_angle = 90 - zenetr  # Solar elevation angle
+            Gr_scaling_factor = m.cos(m.radians(solar_elevation_angle))  # Scale with solar elevation angle
+            Gr = G * pg * Gr_scaling_factor  # Reflected component
+
+            # Total Radiation on Tracking System
+            Gt = Gb + Gd + Gr
+        else:
+            #pdb.set_trace()
+            #print("I am else")
+            # Regular handling for fixed tilt systems
+            Rb = m.cos(m.radians(theta)) / m.cos(m.radians(zenetr))
+            Ai = Gb / Go
+
+            # Catch roundoff errors, so irradiance stays >= 0
+            if Gd < 0:
+                Gd = 0
+            if Gb < 0:
+                Gb = 0
+
+            f = m.sqrt(Gb / G)
+            Gt = (Gb + Gd * Ai) * Rb + Gd * (1 - Ai) * ((1 + m.cos(m.radians(slope))) / 2) * (1 + f * (m.sin(m.radians(slope / 2)) ** 3)) + G * pg * ((1 - m.cos(m.radians(slope))) / 2)
     else:
         Gt = 0
-        
 
     return Gt
+
+def calculate_east_west_tracking_theta(latitude, declin, hrang):
+    # Calculate incidence angle for East-West tracking surface
+    sl = m.sin(m.radians(latitude))
+    cl = m.cos(m.radians(latitude))
+    sd = m.sin(declin)
+    cd = m.cos(declin)
+    ch = m.cos(m.radians(hrang))
+    sh = m.sin(m.radians(hrang))
+
+    THETA = m.acos(((sl * sd + cl * cd * ch) ** 2 + (cd ** 2) * (sh ** 2)) ** 0.5)
+    return m.degrees(THETA)
+
+
+
+##def GetGT(G,slope, pg, theta, zenetr, declin, latitude,daynum):
+# This function calculates the global radiation incident on the solar panels.
+##    if G != 0:
+##        G = G/1000
+##        Gsc = 1.367 #the solar constant [kW/m2]
+##        Gon = Gsc*(1+0.033*m.cos(m.radians(360*daynum/365)))
+##        Go = Gon*m.cos(m.radians(zenetr))
+##        kt = G/Go #G is GHI from TMY datasets
+##        if kt <= 0.22:
+##           Gd = (1-0.09*kt)*G
+##        elif kt > 0.22 and kt <= 0.8:
+##            Gd = (0.9511-0.1604*kt+4.388*kt**2-16.638*kt**3+12.336*kt**4)*G
+##        elif kt > 0.8:
+##            Gd = 0.165*G
+##        Gb = G - Gd   
+##        Rb = m.cos(m.radians(theta))/m.cos(m.radians(zenetr))
+##        Ai = Gb/Go
+##        #Catch roundoff errors, so irradiance stays >=0
+##        if Gd < 0:
+##            Gd = 0
+##        if Gb < 0:
+##            Gb = 0
+##        f = m.sqrt(Gb/G)
+##        Gt = (Gb + Gd*Ai)*Rb + Gd*(1-Ai)*((1+m.cos(m.radians(slope)))/2)*(1+f*(m.sin(m.radians(slope/2))**3))+G*pg*((1-m.cos(m.radians(slope)))/2)
+##    else:
+##        Gt = 0
+        
+
+##    return Gt
 ##============================================================================
 
 ## Get PV Power ===============================================================
@@ -347,7 +418,7 @@ def SolarTotal(MSU_TMY,year,th_hour,longitude,latitude,timezone,slope,azimuth,pg
     hrang,declin,daynum = NRELTheta(year,th_hour,longitude,latitude,timezone)
     theta = GetTheta(declin,latitude,hrang,slope,azimuth)
     zenetr = SolarZenith(declin,latitude,hrang)
-    Gt = GetGT(G,slope, pg, theta, zenetr, declin, latitude,daynum)
+    Gt = GetGT(G, slope, pg, theta, zenetr, declin, latitude, longitude, daynum, th_hour, timezone, year)
     Ppv = GetPVPower(Ypv,fpv,Gt,alpha_p,T_amb,eff_mpp,f_inv)
     
     return m.degrees(hrang),m.degrees(declin),theta,Gt,Ppv,T_amb
