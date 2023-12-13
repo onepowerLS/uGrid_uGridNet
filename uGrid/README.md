@@ -36,8 +36,18 @@ Add uncertainty in load forecasting and solar generation
 The uGrid tool needs the following tools for it to work
     numpy scipy pandas scikit-learn xlsxwriter openpyxl requests
 You can install them using pip install, either globally (not recommended), or in a virtual environment (recommended)
+### Setting up a virtual environment
+Install virtualenv
+-- python -m pip install --user virtualenv
+Set up a virtual environment
+-- virtualenv {virtual environment name}
+-- source {virtual environment name}/bin/activate
+yada yada 
+Install the dependencies 
+-- pip install -r requirements.txt 
 
 ## Using the tool:
 Ensure that all input files and code files are in the same working directory   
 Use a terminal to navigate to the working directory   
-Run:  python3 macro_PC_3_alt.py XXX (where XXX denotes the area of interest and matches the input files (XXX of the input files))
+Run:  python3 macro_PC_3_alt.py
+      - You will be prompted to type in the area name (this could be a concession or any area of interest). Type it in and press enter.
