@@ -6,6 +6,7 @@ for the uGrid tool. The solar functions within the solar calculations python
 file are all based on how the solar generation calculations are done in Homer. 
 
 @author: Phylicia Cicilio
+test update MSO
 """
 
 from __future__ import division
