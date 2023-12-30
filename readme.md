@@ -1,29 +1,47 @@
-# uGrid Files
+# uGrid
 
-## Python Files: 
-Each python file can be run seperately in an independent mode where the interconnecting variables are pre-set. To run the optimization
-the Macro file is run.
+uGrid is an open source code engineering design and decision tool developed to aid the engineering,
+procurement and construction (EPC) of sustainable, reliable minigrids. This toolset is built by the
+minigrid developer, OnePower Africa, to meet their development needs including resource sizing and 
+distribution network layout design. The toolset optimizing for a minimum cost of electricity, referred
+to as the levelized cost of electricity (LCOE). The toolset is composed of two tools, uGrid and
+uGridNet. uGrid performs resource sizing of solar, batteries, and propane generator based on
+yearly load and weather profiles and a dispatch algorithm, all of which is customizable. uGridNet
+performs distribution network layout design based on electricity connection locations, generation
+station location, exclusion ("can't build here") zones, and a reliability cost benefit assessment. 
 
-Marco: macro_PC_3_alt.py: updated accept new technical tools code
+## Getting Started
+Please read the "uGrid Documentation" word document in this folder for information on
+how to get started with these tools, including necessary input data and expected output.
 
-Technical Tools: technical_tools_PC_3_alt.py: updated in 2019 to implement new dispatch algorithm
+## Prerequisites
+The user will need Python 3 installed and the python packages: numpy, pandas, math, pdf2image,
+convert_from_path, PIL, time, networkx, shapely, openpyxl, geopandas and matplotlib.
 
-Economic Tools: economic_tools_PC_3.py 
+## Authors
 
-Solar Calculations: solar_calcs_PC_3.py
+- Phylicia Cicilio (pcicilio@alaska.edu - University of Alaska Fairbanks, US)
 
-## Input Files:
-FullYearEnergy.xlsx: the forecasted load demand for during the coming night for the year (kWh/h)
+- Matthew Orosz (mso@mit.edu - Massachusetts Institute of Technology, US)
 
-LoadkW_MAK.xlsx: the load demand for each timestep for the year (kWh/h) for Ha Makebe (MAK)
+## Contributors
 
-MSU_TMY.xlsx: the weather data for each timestep throughout the year for Ha Makebe area (MSU - Maseru, Lesotho)
+- Thabo Monoto (tgemmonoto@gmail.com - OnePower Africa, Lesotho)
 
-uGrid_input.xlsx: parameter inputs needed to run optimization where each sheet has the inputs for each of the python files
+## License
 
-## Areas for Improvement:
-Update of the PSO optimization for improved speed and accuracy
+**The MIT License**
 
-Create load forcasting tool
+SPDX short identifier: MIT
 
-Add uncertainty in load forecasting and solar generation
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+
+## Acknowledgments
+
+The uGrid code is built from the works of Queralt Altes-Buch (qaltes@uliege.be - University of Liege, Energy Systems Research Unit, Belgium) 
+and Matthew Orosz (mso@mit.edu - Massachusetts Institute of Technology, US)  - (github.com/queraltab/uGrid)
