@@ -396,10 +396,6 @@ def GetPVPower(Ypv,fpv,Gt,alpha_p,Tamb,eff_mpp,f_inv):
     Tc = Tamb + (Gt/Gt_noct)*(Tc_noct-Ta_noct)*(1-(eff_mpp/tau_alpha))
     Ppv = Ypv*fpv*f_inv*(Gt/Gt_stc)*(1+alpha_p*(Tc-Tc_stc))
     
-    if Ppv > Ypv:
-        Ppv = np.copy(Ypv)
-    elif Ppv < 0:
-        Ppv = 0
     
     return Ppv
 ##=============================================================================
