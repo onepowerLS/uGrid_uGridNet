@@ -347,7 +347,7 @@ def Tech_total(BattkWh_Parametric, PVkW_Parametric):
     # Input Calculations
     #old_peak_load = np.max(load['kW']) * Tech_Parameters['peakload_buffer'][0]
     peakload = (np.mean(load['kW']) + 2*np.std(load['kW'])) * Tech_Parameters['peakload_buffer'][0]  # "maximum power output of the load curve [kW]"
-    {np.std(load["kW"])}, New Peak: {np.mean(load["kW"]) + 2*np.std(load["kW"])}')
+    #print(f'Peakload: {peakload}, Older calculation: {old_peak_load}, Mean: {np.mean(load["kW"])}, Standard Deviation: {np.std(load["kW"])}, New Peak: {np.mean(load["kW"]) + 2*np.std(load["kW"])}')
     BattkWh = BattkWh_Parametric * peakload  # "[kWh]"
     loadkWh = sum(load['kW'])
     PVkW = PVkW_Parametric * peakload  # "[kW]"
