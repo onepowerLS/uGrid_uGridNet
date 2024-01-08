@@ -114,7 +114,7 @@ def fuel_calcs(genload, peakload, timestep):
 
 
 ## operation FUNCTION =====================================================================================================
-def operation(Batt_Charge_Limit, smart, PVkW, BattkWh, peakload, LoadKW_MAK, FullYearEnergy, MSU_TMY, Solar_Parameters,
+def operation(Batt_Charge_Limit, smart, PVkW, BattkWh, peakload, LoadKW_MAK, FullYearEnergy, TMY, Solar_Parameters,
               trans_losses):
     # This function cycles through the year of data provided to determine the power flows and propane consumption for each timestep in
     # the year by calling all of the previous functions and the solar python file.
@@ -174,7 +174,7 @@ def operation(Batt_Charge_Limit, smart, PVkW, BattkWh, peakload, LoadKW_MAK, Ful
 
         if PVkW > 0:
             # " Assess solar availability "
-            hrang, declin, theta, Gt, P_PV[h], T_amb = SolarTotal(MSU_TMY, Solar_Parameters['year'][0], Hour[h],
+            hrang, declin, theta, Gt, P_PV[h], T_amb = SolarTotal(TMY, Solar_Parameters['year'][0], Hour[h],
                                                                   Solar_Parameters['longitude'][0],
                                                                   Solar_Parameters['latitude'][0],
                                                                   Solar_Parameters['timezone'][0],
@@ -185,6 +185,8 @@ def operation(Batt_Charge_Limit, smart, PVkW, BattkWh, peakload, LoadKW_MAK, Ful
                                                                   Solar_Parameters['alpha_p'][0],
                                                                   Solar_Parameters['eff_mpp'][0],
                                                                   Solar_Parameters['f_inv'][0])
+        
+          
         else:
             T_amb = -9999
             P_PV[h] = 0
@@ -329,13 +331,11 @@ def Tech_total(BattkWh_Parametric, PVkW_Parametric):
     sitename = SITE_NAME
    # Load Files
     load_file = get_8760(sitename)
-    # print(load_file)
     load = pd.read_excel(loadfile, sheet_name='8760', usecols='B')
     # TODO: Here
     #FullYearEnergy = pd.read_excel('FullYearEnergy.xlsx', index_col=None, header=None) 
     FullYearEnergy = full_year_energy_calc(day_totals, modified8760, indices)
     #Test fullyear
-    #print(FullYearEnergy)
     # TODO: Here
     TMY = pd.read_excel(sitename + '_TMY.xlsx')
     # TODO: Here
@@ -343,13 +343,11 @@ def Tech_total(BattkWh_Parametric, PVkW_Parametric):
     # TODO: Here
     Solar_Parameters = pd.read_excel(sitename + '_uGrid_Input.xlsx', sheet_name='Solar')
     # TODO: Here
-    #print(FullYearEnergy, TMY)
 
     # Input Calculations
-    #print(load)
     #old_peak_load = np.max(load['kW']) * Tech_Parameters['peakload_buffer'][0]
     peakload = (np.mean(load['kW']) + 2*np.std(load['kW'])) * Tech_Parameters['peakload_buffer'][0]  # "maximum power output of the load curve [kW]"
-    #print(f'Peakload: {peakload}, Older calculation: {old_peak_load}, Mean: {np.mean(load["kW"])}, Standard Deviation: {np.std(load["kW"])}, New Peak: {np.mean(load["kW"]) + 2*np.std(load["kW"])}')
+    {np.std(load["kW"])}, New Peak: {np.mean(load["kW"]) + 2*np.std(load["kW"])}')
     BattkWh = BattkWh_Parametric * peakload  # "[kWh]"
     loadkWh = sum(load['kW'])
     PVkW = PVkW_Parametric * peakload  # "[kW]"

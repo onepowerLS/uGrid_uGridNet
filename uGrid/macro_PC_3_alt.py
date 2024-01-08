@@ -149,7 +149,8 @@ if __name__ == "__main__":
     match = 0
     while iteration < maxGen-1 and t_diff > stopLimit and match < convergenceRequirement:
         match = 0
-        for m in range(numInd):            
+        for m in range(numInd):
+            print(f"The parameters are {Parameters[0,m,iteration]} and {Parameters[1,m,iteration]}")
             #calculate technical parameters
             Propane_ec[m,iteration], Batt_SOC, LoadkW, P_gen, P_PV, P_batt, P_dump,Limit_charge, Limit_discharge, BattkW, Batt_kWh_tot_ec[m,iteration],loadkWh,peakload = Tech_total(Parameters[0,m,iteration],Parameters[1,m,iteration])
             print('Battery KW: ' + str(BattkW))

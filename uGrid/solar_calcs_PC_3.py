@@ -405,14 +405,14 @@ def GetPVPower(Ypv,fpv,Gt,alpha_p,Tamb,eff_mpp,f_inv):
 ##=============================================================================
   
 ## Calculate all solar calcs ==================================================
-def SolarTotal(MSU_TMY,year,th_hour,longitude,latitude,timezone,slope,azimuth,pg,Ypv,fpv,alpha_p,eff_mpp,f_inv):
+def SolarTotal(TMY,year,th_hour,longitude,latitude,timezone,slope,azimuth,pg,Ypv,fpv,alpha_p,eff_mpp,f_inv):
 
-    #Get Values from MSU_TMY
-    Hour = MSU_TMY.loc[:,'Hour']  #collects entire column
-    Tamb = MSU_TMY.loc[:,'Tamb'] 
-    GHI = MSU_TMY.loc[:,'GHI'] #in the TMY spreadsheet DNI, GHI, and itrack are all the same
+    #Get Values from TMY
+    Hour = TMY.loc[:,'Hour']  #collects entire column
+    Tamb = TMY.loc[:,'Tamb'] 
+    GHI = TMY.loc[:,'GHI'] #in the TMY spreadsheet DNI, GHI, and itrack are all the same
     G = np.interp(th_hour, Hour, GHI) 
-    T_amb = np.interp(th_hour, Hour, Tamb) #('MSU_TMY','Tamb','Hour',Hour=th_Hour)	 
+    T_amb = np.interp(th_hour, Hour, Tamb) #('TMY','Tamb','Hour',Hour=th_Hour)	 
 
     
     hrang,declin,daynum = NRELTheta(year,th_hour,longitude,latitude,timezone)
