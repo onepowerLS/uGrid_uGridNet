@@ -107,6 +107,7 @@ if __name__ == "__main__":
     #TODO: Here
     hmax = len(load)
     gB_Cost = np.zeros(hmax)
+    print('cost is: ',gB_Cost)
     data_plot_variables = np.zeros((hmax,6))
     gB_plot_variables = pd.DataFrame(data = data_plot_variables,columns=['Batt_SOC', 'LoadkW', 'P_gen', 'P_PV', 'P_batt', 'P_dump'])
     #print(gB_plot_variables)
@@ -174,9 +175,9 @@ if __name__ == "__main__":
                 gB_change_tariff_plus[iteration] = gB_change_tariff[iteration]*(1+X_tariff_multiplier)
                 gB_change_propane[iteration] = np.copy(Propane_ec[m,iteration])
                 gB_change_parameters[:,iteration] = np.copy(Parameters[:,m,iteration])
-                gB_change_cost[iteration] = np.copy(Cost[iteration])
+                gB_change_cost[iteration] = np.copy(sum(Cost))
                 
-                #print(gB_change_cost[iteration], )
+                print('more costs', gB_change_cost[iteration] )
             #Find global best (removed gB_tariff_plus buffer for true global best: tariff[m,iteration] < gB_tariff_plus or)
             if tariff[m,iteration] < gB_tariff_plus or (tariff[m,iteration] < gB_tariff and Propane_ec[m,0] < gB_propane):
                 gB_tariff = np.copy(tariff[m,iteration])
@@ -249,7 +250,8 @@ if __name__ == "__main__":
         print("Global Best Tariff "+ str(gB_tariff))
         print("Best Tariff in Generation " + str(gB_change_tariff[iteration]))
         print("Propane meeting best tarrif " + str(gB_change_propane[iteration]) + str(gB_propane))
-        print("Total Cost of Generation " + str(sum(gB_Cost)))
+        print("Total Cost of Generation " + str(gB_change_cost[iteration]))
+        
         iteration += 1
 
     #Calculate total run time
@@ -258,7 +260,7 @@ if __name__ == "__main__":
     print("Time to complete simulation is " + str(total_time))
 
     #Best Solution Variables Saved
-    Total_Cost = sum(gB_Cost)
+    Total_Cost = gB_change_cost #gB_change_cost
     #add extra variables to solution output
     #This raises the error: ValueError: If using all scalar values, you must pass an index
     gB_total_var =pd.DataFrame({'Total Cost':[Total_Cost],'Simulation_Time':[total_time], 'Peak Load':[peakload]})
@@ -274,7 +276,7 @@ if __name__ == "__main__":
     Cost_EPC_tracker_opt_array = gB_change_parameters[1,:]*peakload*Size_costing_parameters.iloc[3].to_numpy()
     C1_LPG_opt_array = peakload*Size_costing_parameters.iloc[4].to_numpy()
     Cost_BOS_opt_array = gB_change_parameters[1,:]*peakload*Size_costing_parameters.iloc[5].to_numpy()
-    print(Cost_panels_opt_array,Cost_bank_opt_array, Cost_inv_opt_array, Cost_EPC_tracker_opt_array, C1_LPG_opt_array,Cost_BOS_opt_array)
+    #print(Cost_panels_opt_array,Cost_bank_opt_array, Cost_inv_opt_array, Cost_EPC_tracker_opt_array, C1_LPG_opt_array,Cost_BOS_opt_array)
 
     for n in range(len(Cost_panels_opt_array)):
        
@@ -291,7 +293,7 @@ if __name__ == "__main__":
     #Cost_inv[iteration],
     #Cost_EPC_opt[iteration],
     #Cost_EPC_tracker_opt 
-    gB_optimization_output_var = {'BattkW':gB_change_parameters[0,:],'PVkW':gB_change_parameters[1,:], 'Propane':gB_change_propane,'Tariff':gB_change_tariff, 'Cost':sum(gB_Cost)}
+    gB_optimization_output_var = {'BattkW':gB_change_parameters[0,:],'PVkW':gB_change_parameters[1,:], 'Propane':gB_change_propane,'Tariff':gB_change_tariff, 'Cost':gB_change_cost}
     #gB_optimization_costs_breakdown = {'Propane':1.3*gB_change_propane}
     #gB_optimization_costs_breakdown = {'Propane':gB_change_propane, 'PV':gB_propane, 'Battery':, 'Inverter':, 'Tracker':, 'Genset':, 'Reticulation':,'EPC':, 'BOS':, 'Labour':, }
     gB_recordRecord = pd.DataFrame({'recordRecord':recordRecord})
