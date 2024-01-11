@@ -30,9 +30,9 @@ from constants import HOUSEHOLD_CURRENT, REFERENCES
 from util import create_pole_list_from_df
 from network_calculations import network_calculations
 
-CONCESSION = sys.argv[1]
-VILLAGE_NUMBER = sys.argv[2]
-VILLAGE_NAME = sys.argv[3] if "C1" not in VILLAGE_NUMBER else None
+CONCESSION = input('Enter concession: ')
+VILLAGE_NUMBER = input('Enter village number: ')
+VILLAGE_NAME = input('Enter village name: ') if "C1" not in VILLAGE_NUMBER else None
 
 VILLAGE_ID = f"{CONCESSION}_{VILLAGE_NUMBER}" if (VILLAGE_NUMBER is not None) else f"{CONCESSION}"
 FULL_VILLAGE_NAME = f"{VILLAGE_ID}_{VILLAGE_NAME}" if (VILLAGE_NAME is not None) else f"{VILLAGE_ID}"
