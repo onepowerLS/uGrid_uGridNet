@@ -30,9 +30,9 @@ from constants import HOUSEHOLD_CURRENT, REFERENCES
 from util import create_pole_list_from_df
 from network_calculations import network_calculations
 
-CONCESSION = input('Enter concession: ')
-VILLAGE_NUMBER = input('Enter village number: ')
-VILLAGE_NAME = input('Enter village name: ') if "C1" not in VILLAGE_NUMBER else None
+CONCESSION = sys.argv[1]
+VILLAGE_NUMBER = sys.argv[2]
+VILLAGE_NAME = sys.argv[3] if "C1" not in VILLAGE_NUMBER else None
 
 VILLAGE_ID = f"{CONCESSION}_{VILLAGE_NUMBER}" if (VILLAGE_NUMBER is not None) else f"{CONCESSION}"
 FULL_VILLAGE_NAME = f"{VILLAGE_ID}_{VILLAGE_NAME}" if (VILLAGE_NAME is not None) else f"{VILLAGE_ID}"
@@ -405,10 +405,11 @@ def CollectVillageData(reformatScaler=1, exclusionBuffer=2, max_d=4000):
     #print("PeakLoad is {}".format(PeakLoad))
 
     # Import kml pdf file (of exclusions) and convert to jpg
+    poppler_path_ = r"C:\Users\1pwr\Python_Projects\jvenv\Lib\site-packages\poppler-23.08.0\Library\bin"
     if os.name == 'nt':
-        pages = convert_from_path(FULL_VILLAGE_NAME + '_exclusions.pdf', 500,)
+        pages = convert_from_path(FULL_VILLAGE_NAME + '_exclusions.pdf', 500,poppler_path =poppler_path_)
     else:
-        pages = convert_from_path(FULL_VILLAGE_NAME + '_exclusions.pdf', 500,)
+        pages = convert_from_path(FULL_VILLAGE_NAME + '_exclusions.pdf', 500,poppler_path =poppler_path_)
     for page in pages:
         page.save(FULL_VILLAGE_NAME + '_exclusions.jpg', 'JPEG')
 
@@ -828,10 +829,10 @@ def PoleAngleClass(pole_indexes, d_EW_between, d_NS_between, ntype):
             if ntype == 'LV':
                 if agl <5:
                     classes.append("mid_straight")
-                elif agl < 45:
-                    classes.append("mid_less_45")
-                elif agl >45:
-                    classes.append("mid_over_45")
+                elif agl < 60:
+                    classes.append("mid_less_60")
+                elif agl >60:
+                    classes.append("mid_over_60")
             elif ntype == 'MV':
                 if agl <5:
                     classes.append("mid_straight")
@@ -884,17 +885,18 @@ def PoleElevation(gen_LON, gen_LAT, gen_indexes, target_indexes, d_EW_between, d
     import requests
     GPD = gpd.GeoDataFrame(geometry=[Point(np.degrees(gen_LON), np.degrees(gen_LAT))])
     GPD = GPD.set_crs("WGS84")  # WGS84
-    GPD = GPD.to_crs("EPSG:22289")  # Transform to UTM (Mercator)
+    GPD = GPD.to_crs("EPSG:32631") #GPD.to_crs("EPSG:22289")  # Transform to UTM (Mercator)
     X, Y = list(GPD.geometry.values[0].coords)[0]
     X_Shifts = (gen_indexes[0] - target_indexes[:, 0]) * d_EW_between
     Y_Shifts = (gen_indexes[1] - target_indexes[:, 1]) * d_NS_between
     DF = pd.DataFrame({'index_x': target_indexes[:, 0], 'index_y': target_indexes[:, 1],
-                       'UTM_X': X + X_Shifts, 'UTM_Y': Y + Y_Shifts})
+                       'UTM_X': X - X_Shifts, 'UTM_Y': Y - Y_Shifts})
     new_GDF = gpd.GeoDataFrame(DF, geometry=gpd.points_from_xy(DF.UTM_X, DF.UTM_Y))
-    new_GDF = new_GDF.set_crs("EPSG:22289")  # EPSG:3857
+    new_GDF = new_GDF.set_crs("EPSG:32631") #new_GDF.set_crs("EPSG:22289")  # EPSG:3857
     new_GDF = new_GDF.to_crs("WGS84")  # EPSG:4326
     gps = np.array([[list(i.coords)[0][0], list(i.coords)[0][1]] for i in new_GDF.geometry.values])
 
+    #print('\n\n\ngps size: ', len(gps), ' \n',gps)
     # print('\r\n*-\r\n Reference Coordinate: ', np.degrees(gen_LON),np.degrees(gen_LAT),'\r\n*')
 
     # Recalibrate the uGridnet coordinate outputs
@@ -1314,8 +1316,8 @@ def ClassifyNetworkPoles(gen_LAT, gen_LON, gen_site_indexes,
         DF = pd.DataFrame(MV_Pole_indexes, columns=['index_x', 'index_y', 'distance_from_source'])
         DF['ID'] = MV_poles_names
         DF['Type'] = ['MV'] * len(MV_poles_names)
-        print(MV_Pole_indexes.shape)
-        print(LV_Pole_indexes.shape)
+        print('MV_Pole_indexes: ',MV_Pole_indexes.shape)
+        print('LV_Pole_indexes: ',LV_Pole_indexes.shape)
 
     AngleClasses = AngleClasses.drop_duplicates(subset=['index_x', 'index_y'])
 
@@ -1482,6 +1484,10 @@ def ConcessionDetails(dfpoles, dfnet, dfdropline, dfcosts, connections, voltaged
     dfcosts = dfcosts.dropna()
     connections = connections.dropna()
     voltagedropdf = voltagedropdf.dropna()
+    
+    Rectify_Network_shift(connections, dfpoles)
+
+
     path = os.path.join(os.getcwd(), FULL_VILLAGE_NAME)  # directory to save in
     if os.path.isdir(path):
         pass
@@ -1563,6 +1569,8 @@ def AddSpur(filename, gen_LON, gen_LAT, gen_indexes, indexes, type_,
     networklength = pd.read_excel(path + '/' + filename + ".xlsx", sheet_name='NetworkLength', skiprows=[1])
     droplines = pd.read_excel(path + '/' + filename + ".xlsx", sheet_name='DropLines', skiprows=[1])
     conns = pd.read_excel(path + '/' + filename + ".xlsx", sheet_name='Connections', skiprows=[1])
+
+    
     # except:
     #     poleclasses = pd.read_excel(path + '/' + filename + str(conc_id) + ".xlsx", sheet_name='PoleClasses',
     #                                 skiprows=[1])
@@ -1687,7 +1695,6 @@ def gpsRecalibration(gen_lat, un_lat, gen_long, un_long, orig_long=-1, orig_lat=
     # RECALIBRATE THE GPS COORDINATES FOR THE UGRIDNET OUTPUT
     # Constraints: 1) Ideally Requires the correlation equation be changed respectively for every site run
     #             2) If need be, the equation can be created using excel spreadsheet
-
     # TODO: ADD A MORE ROBUST FLATTENING PROJECTION FIX FOR THE COORDINATES
 
     ref_lat, ref_long = gen_lat, gen_long
@@ -1707,9 +1714,13 @@ def gpsRecalibration(gen_lat, un_lat, gen_long, un_long, orig_long=-1, orig_lat=
         average_long_offset = un_long - ref_long
 
     # Equations to correct/calibrate uGridNet coordinates outputs
-    corr_lat = (0.005065190225781 * abs(average_lat_offset) - 0.00000283805355199712) + un_lat  # correction of latitude
-    corr_long = ((
-                         0.003791523859891 * average_long_offset) + 0.00000284320752421793) + un_long  # correction of longitude
+    location  = "NORTH"
+    if location == "SOUTH":
+        corr_lat = (0.005065190225781 * abs(average_lat_offset) - 0.00000283805355199712) + un_lat  # correction of latitude
+        corr_long = ((0.003791523859891 * average_long_offset) + 0.00000284320752421793) + un_long  # correction of longitude
+    elif location == "NORTH":
+        corr_lat = (0.00404411886637057 * abs(average_lat_offset) + 0.00002250368493118) + un_lat  # correction of latitude
+        corr_long = ((-0.00228730242697637000 *average_long_offset) + 0.00000016306793871088) + un_long  # correction of longitude
 
     return corr_lat, corr_long
 
@@ -1902,6 +1913,16 @@ def SimulateNetwork(site_properties,
         print("Could not find a solution, trying again!")
         return SimulateNetwork(site_properties, min_trans + 1)
     return BestPoleClasses, BestNetworkLines, BestDropLines, connections, BestVoltageDrop, BestNetworkCost
+
+def Rectify_Network_shift(Network_connections,Network_poles):
+    origional_connections = pd.read_excel(f"{FULL_VILLAGE_NAME}_connections.xlsx")
+    print('raw_connections: ', type(origional_connections),' ', origional_connections )
+
+
+
+
+
+
 
 
 # ==============================================================================
