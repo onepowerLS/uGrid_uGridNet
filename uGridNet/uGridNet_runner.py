@@ -405,11 +405,11 @@ def CollectVillageData(reformatScaler=1, exclusionBuffer=2, max_d=4000):
     #print("PeakLoad is {}".format(PeakLoad))
 
     # Import kml pdf file (of exclusions) and convert to jpg
-    poppler_path_ = r"C:\Users\1pwr\Python_Projects\jvenv\Lib\site-packages\poppler-23.08.0\Library\bin"
+    #poppler_path_ = r"C:\Users\1pwr\Python_Projects\jvenv\Lib\site-packages\poppler-23.08.0\Library\bin"
     if os.name == 'nt':
-        pages = convert_from_path(FULL_VILLAGE_NAME + '_exclusions.pdf', 500,poppler_path =poppler_path_)
+        pages = convert_from_path(FULL_VILLAGE_NAME + '_exclusions.pdf', 500,)
     else:
-        pages = convert_from_path(FULL_VILLAGE_NAME + '_exclusions.pdf', 500,poppler_path =poppler_path_)
+        pages = convert_from_path(FULL_VILLAGE_NAME + '_exclusions.pdf', 500,)
     for page in pages:
         page.save(FULL_VILLAGE_NAME + '_exclusions.jpg', 'JPEG')
 
