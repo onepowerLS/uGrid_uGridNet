@@ -33,7 +33,6 @@ from network_calculations import network_calculations
 CONCESSION = sys.argv[1]
 VILLAGE_NUMBER = sys.argv[2]
 VILLAGE_NAME = sys.argv[3] if "C1" not in VILLAGE_NUMBER else None
-EPSG = sys.argv[4]
 
 VILLAGE_ID = f"{CONCESSION}_{VILLAGE_NUMBER}" if (VILLAGE_NUMBER is not None) else f"{CONCESSION}"
 FULL_VILLAGE_NAME = f"{VILLAGE_ID}_{VILLAGE_NAME}" if (VILLAGE_NAME is not None) else f"{VILLAGE_ID}"
