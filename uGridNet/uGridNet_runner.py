@@ -33,6 +33,7 @@ from network_calculations import network_calculations
 CONCESSION = sys.argv[1]
 VILLAGE_NUMBER = sys.argv[2]
 VILLAGE_NAME = sys.argv[3] if "C1" not in VILLAGE_NUMBER else None
+EPSG = sys.argv[4]
 
 VILLAGE_ID = f"{CONCESSION}_{VILLAGE_NUMBER}" if (VILLAGE_NUMBER is not None) else f"{CONCESSION}"
 FULL_VILLAGE_NAME = f"{VILLAGE_ID}_{VILLAGE_NAME}" if (VILLAGE_NAME is not None) else f"{VILLAGE_ID}"
@@ -1719,8 +1720,10 @@ def gpsRecalibration(gen_lat, un_lat, gen_long, un_long, orig_long=-1, orig_lat=
         corr_lat = (0.005065190225781 * abs(average_lat_offset) - 0.00000283805355199712) + un_lat  # correction of latitude
         corr_long = ((0.003791523859891 * average_long_offset) + 0.00000284320752421793) + un_long  # correction of longitude
     elif location == "NORTH":
-        corr_lat = (0.00404411886637057 * abs(average_lat_offset) + 0.00002250368493118) + un_lat  # correction of latitude
-        corr_long = ((-0.00228730242697637000 *average_long_offset) + 0.00000016306793871088) + un_long  # correction of longitude
+        #corr_lat = (0.00404411886637057 * abs(average_lat_offset) + 0.00002250368493118) + un_lat  # correction of latitude
+        corr_lat = un_lat + abs(average_lat_offset)
+        #corr_long = ((-0.00228730242697637000 *average_long_offset) + 0.00000016306793871088) + un_long  # correction of longitude
+        corr_long = un_long + abs(average_long_offset)
 
     return corr_lat, corr_long
 
