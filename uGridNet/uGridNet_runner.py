@@ -884,6 +884,7 @@ def PoleAngleClass(pole_indexes, d_EW_between, d_NS_between, ntype):
 def PoleElevation(gen_LON, gen_LAT, gen_indexes, target_indexes, d_EW_between, d_NS_between):
     import requests
     GPD = gpd.GeoDataFrame(geometry=[Point(np.degrees(gen_LON), np.degrees(gen_LAT))])
+    print(f'GPD: {GPD}')
     #GPD = GPD.set_crs("WGS84")  # WGS84
     #GPD = GPD.to_crs("WGS84") #GPD.to_crs("EPSG:32631") #GPD.to_crs("EPSG:22289")  # Transform to UTM (Mercator)
     X, Y = list(GPD.geometry.values[0].coords)[0]
@@ -892,6 +893,7 @@ def PoleElevation(gen_LON, gen_LAT, gen_indexes, target_indexes, d_EW_between, d
     DF = pd.DataFrame({'index_x': target_indexes[:, 0], 'index_y': target_indexes[:, 1],
                        'UTM_X': X - X_Shifts, 'UTM_Y': Y - Y_Shifts})
     new_GDF = gpd.GeoDataFrame(DF, geometry=gpd.points_from_xy(DF.UTM_X, DF.UTM_Y))
+    print(f'newGDF: {newGDG}')
     #new_GDF = new_GDF.set_crs("WGS84") #new_GDF.set_crs("EPSG:32631") #new_GDF.set_crs("EPSG:22289")  # EPSG:3857
     #new_GDF = new_GDF.to_crs("WGS84")  # EPSG:4326
     gps = np.array([[list(i.coords)[0][0], list(i.coords)[0][1]] for i in new_GDF.geometry.values])
