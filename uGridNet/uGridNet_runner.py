@@ -1722,9 +1722,9 @@ def gpsRecalibration(gen_lat, un_lat, gen_long, un_long, orig_long=-1, orig_lat=
         corr_long = ((0.003791523859891 * average_long_offset) + 0.00000284320752421793) + un_long  # correction of longitude
     elif location == "NORTH":
         #corr_lat = (0.00404411886637057 * abs(average_lat_offset) + 0.00002250368493118) + un_lat  # correction of latitude
-        corr_lat = un_lat + abs(average_lat_offset)
+        corr_lat = un_lat 
         #corr_long = ((-0.00228730242697637000 *average_long_offset) + 0.00000016306793871088) + un_long  # correction of longitude
-        corr_long = un_long + abs(average_long_offset)
+        corr_long = un_long 
 
     return corr_lat, corr_long
 
