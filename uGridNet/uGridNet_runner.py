@@ -894,8 +894,8 @@ def PoleElevation(gen_LON, gen_LAT, gen_indexes, target_indexes, d_EW_between, d
                        'UTM_X': X - X_Shifts, 'UTM_Y': Y - Y_Shifts})
     new_GDF = gpd.GeoDataFrame(DF, geometry=gpd.points_from_xy(DF.UTM_X, DF.UTM_Y))
     print(f'newGDF: {new_GDF}')
-    new_GDF = new_GDF.set_crs("EPSG:32631") #new_GDF.set_crs("EPSG:22289")  # EPSG:3857
-    new_GDF = new_GDF.to_crs("EPSG:4326")  # EPSG:4326
+    #new_GDF = new_GDF.set_crs("EPSG:32631") #new_GDF.set_crs("EPSG:22289")  # EPSG:3857
+    #new_GDF = new_GDF.to_crs("EPSG:4326")  # EPSG:4326
     gps = np.array([[list(i.coords)[0][0], list(i.coords)[0][1]] for i in new_GDF.geometry.values])
 
     #print('\n\n\ngps size: ', len(gps), ' \n',gps)
