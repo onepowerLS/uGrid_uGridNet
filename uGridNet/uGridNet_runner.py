@@ -885,8 +885,8 @@ def PoleElevation(gen_LON, gen_LAT, gen_indexes, target_indexes, d_EW_between, d
     import requests
     GPD = gpd.GeoDataFrame(geometry=[Point(np.degrees(gen_LON), np.degrees(gen_LAT))])
     print(f'GPD: {GPD}')
-    GPD = GPD.set_crs("EPSG:4326")  # WGS84
-    GPD = GPD.to_crs("EPSG:32631") #GPD.to_crs("EPSG:22289")  # Transform to UTM (Mercator)
+    #GPD = GPD.set_crs("EPSG:4326")  # WGS84
+    #GPD = GPD.to_crs("EPSG:32631") #GPD.to_crs("EPSG:22289")  # Transform to UTM (Mercator)
     X, Y = list(GPD.geometry.values[0].coords)[0]
     X_Shifts = (gen_indexes[0] - target_indexes[:, 0]) * d_EW_between
     Y_Shifts = (gen_indexes[1] - target_indexes[:, 1]) * d_NS_between
