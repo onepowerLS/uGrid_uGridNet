@@ -938,6 +938,7 @@ def PoleElevation(gen_LON, gen_LAT, gen_indexes, target_indexes, d_EW_between, d
             headers = {}
             response = requests.request('GET', url, headers=headers, data=payload).json()
             elevations = elevations + [res['elevation'] for res in response['results']]
+            print(f'GPS: {gps}, elevations: {elevations}')
     return np.array(elevations), list(DF.UTM_X), list(DF.UTM_Y), gps
 
 
