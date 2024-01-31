@@ -885,8 +885,8 @@ def PoleElevation(gen_LON, gen_LAT, gen_indexes, target_indexes, d_EW_between, d
     import requests
     GPD = gpd.GeoDataFrame(geometry=[Point(np.degrees(gen_LON), np.degrees(gen_LAT))])
     print(f'GPD: {GPD}')
-    #GPD = GPD.set_crs("EPSG:4326")  # WGS84
-    #GPD = GPD.to_crs("EPSG:32631") #GPD.to_crs("EPSG:22289")  # Transform to UTM (Mercator)
+    GPD = GPD.set_crs("EPSG:4326")  # WGS84
+    GPD = GPD.to_crs("EPSG:32631") #GPD.to_crs("EPSG:22289")  # Transform to UTM (Mercator)
     X, Y = list(GPD.geometry.values[0].coords)[0]
     X_Shifts = (gen_indexes[0] - target_indexes[:, 0]) * d_EW_between
     Y_Shifts = (gen_indexes[1] - target_indexes[:, 1]) * d_NS_between
@@ -894,8 +894,8 @@ def PoleElevation(gen_LON, gen_LAT, gen_indexes, target_indexes, d_EW_between, d
                        'UTM_X': X - X_Shifts, 'UTM_Y': Y - Y_Shifts})
     new_GDF = gpd.GeoDataFrame(DF, geometry=gpd.points_from_xy(DF.UTM_X, DF.UTM_Y))
     print(f'newGDF: {new_GDF}')
-    #new_GDF = new_GDF.set_crs("EPSG:32631") #new_GDF.set_crs("EPSG:22289")  # EPSG:3857
-    #new_GDF = new_GDF.to_crs("EPSG:4326")  # EPSG:4326
+    new_GDF = new_GDF.set_crs("EPSG:32631") #new_GDF.set_crs("EPSG:22289")  # EPSG:3857
+    new_GDF = new_GDF.to_crs("EPSG:4326")  # EPSG:4326
     gps = np.array([[list(i.coords)[0][0], list(i.coords)[0][1]] for i in new_GDF.geometry.values])
     print(f'GPS: {gps}')
 
