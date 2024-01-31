@@ -897,6 +897,7 @@ def PoleElevation(gen_LON, gen_LAT, gen_indexes, target_indexes, d_EW_between, d
     #new_GDF = new_GDF.set_crs("EPSG:32631") #new_GDF.set_crs("EPSG:22289")  # EPSG:3857
     #new_GDF = new_GDF.to_crs("EPSG:4326")  # EPSG:4326
     gps = np.array([[list(i.coords)[0][0], list(i.coords)[0][1]] for i in new_GDF.geometry.values])
+    print(f'GPS: {gps}')
 
     #print('\n\n\ngps size: ', len(gps), ' \n',gps)
     # print('\r\n*-\r\n Reference Coordinate: ', np.degrees(gen_LON),np.degrees(gen_LAT),'\r\n*')
@@ -938,7 +939,6 @@ def PoleElevation(gen_LON, gen_LAT, gen_indexes, target_indexes, d_EW_between, d
             headers = {}
             response = requests.request('GET', url, headers=headers, data=payload).json()
             elevations = elevations + [res['elevation'] for res in response['results']]
-            print(f'GPS: {gps}, elevations: {elevations}')
     return np.array(elevations), list(DF.UTM_X), list(DF.UTM_Y), gps
 
 
