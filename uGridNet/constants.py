@@ -93,3 +93,8 @@ TRANSFORMER_PROPERTIES = {
 #     references: REFERENCES,
 #     quantities: 
 # }
+
+MERCATORS = {
+    "S": "EPSG:22289",
+    "N": "EPSG:32631",
+}
