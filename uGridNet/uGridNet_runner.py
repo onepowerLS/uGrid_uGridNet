@@ -26,22 +26,27 @@ from pdf2image import convert_from_path
 from scipy.spatial import distance_matrix
 from shapely.geometry import Point, LineString
 
-from constants import HOUSEHOLD_CURRENT, REFERENCES
+from constants import HOUSEHOLD_CURRENT, REFERENCES,MERCATORS
 from util import create_pole_list_from_df
 from network_calculations import network_calculations
 
 CONCESSION = sys.argv[1]
 VILLAGE_NUMBER = sys.argv[2]
 VILLAGE_NAME = sys.argv[3] if "C1" not in VILLAGE_NUMBER else None
+LOCATION = str(sys.argv[4]).upper() if len(sys.argv)>4 else "S" # can either be S or N, where S is SOUTH and N is North
 
 VILLAGE_ID = f"{CONCESSION}_{VILLAGE_NUMBER}" if (VILLAGE_NUMBER is not None) else f"{CONCESSION}"
 FULL_VILLAGE_NAME = f"{VILLAGE_ID}_{VILLAGE_NAME}" if (VILLAGE_NAME is not None) else f"{VILLAGE_ID}"
 
 
 
+
 # ==============================================================================
 # Evaluate intersection points of 2D arrays
 def Intersect2d(X1, X2):
+    """
+    Evaluate intersection points of 2D arrays
+    """
     X_t1, X_t2 = [], []
     for x in X1:
         X_t1.append(tuple(x))
@@ -56,12 +61,35 @@ def Intersect2d(X1, X2):
 # ==============================================================================
 # Calculate Distance between GPS coordinates with Haversine Formula (returns in m)
 def GPStoDistance(Lat1, Lat2, Long1, Long2):
+    """
+    Calculate Distance between GPS coordinates with Haversine Formula (returns in m)
+    """
     R_earth = 6371  # earth's mean radius in km
     a = m.sin((Lat1 - Lat2) / 2) ** 2 + m.cos(Lat1) * m.cos(Lat2) * m.sin((Long1 - Long2) / 2) ** 2
     c = 2 * m.atan2(m.sqrt(a), m.sqrt(1 - a))
     d = (R_earth * c) * 1000  # m
     return d
 
+# ==============================================================================
+# Calculate Distance between GPS coordinates using utm values from mercators. (returns tuple of x,y in meters).
+def GPStoDistance_utm(Lat_exc_min_new, Long_exc_min_new, lat_coord, long_coord):
+    """
+    Calculate Distance between GPS coordinates using utm values from mercators. (returns tuple of x,y in meters).
+    All the arguments should be in degrees
+    """
+    GPD_min = gpd.GeoDataFrame(geometry=[Point(Long_exc_min_new, Lat_exc_min_new)])
+    GPD_min = GPD_min.set_crs("WGS84")
+    GPD_min = GPD_min.to_crs(MERCATORS[(LOCATION.upper())])
+    Xmin,Ymin = list(GPD_min.geometry.values[0].coords)[0]
+
+    GPD_coord = gpd.GeoDataFrame(geometry=[Point(long_coord,lat_coord)])
+    GPD_coord = GPD_coord.set_crs("WGS84")
+    GPD_coord = GPD_coord.to_crs(MERCATORS[(LOCATION.upper())])
+    X_coord,Y_coord = list(GPD_coord.geometry.values[0].coords)[0]
+    
+    X_dist = X_coord - Xmin
+    Y_dist = Y_coord - Ymin
+    return X_dist,Y_dist
 
 # ===============================================================================
 
@@ -70,12 +98,14 @@ def GPStoDistance(Lat1, Lat2, Long1, Long2):
 # Exclusion Mapper using 2nd array instead of increasing list of indexes
 def ExclusionMapper(ExclusionMap_array, reformatScaler, exclusionBuffer, d_EW_between, d_NS_between, width_new,
                     height_new):
-    # This function takes the exclusion array, collected from the pdf image, and
-    # recasts the exclusion zones into a new array accounting the for the exclusion
-    # buffer and reformat scaler. The reformat scaler is used to reduce the
-    # dimensions of the exclusion array so the program can run faster.
-    # Additionally, it can make sense to reduce the resolution if the original pixel
-    # resolution is less than a foot, such a high resolution is unnecessary.
+    """
+     This function takes the exclusion array, collected from the pdf image, and
+     recasts the exclusion zones into a new array accounting the for the exclusion
+     buffer and reformat scaler. The reformat scaler is used to reduce the
+     dimensions of the exclusion array so the program can run faster.
+     Additionally, it can make sense to reduce the resolution if the original pixel
+     resolution is less than a foot, such a high resolution is unnecessary.
+    """
     print("in exclusion mapper")
     # Extend the exclusions to include the buffer zone
     bufferArrayWidth_EW = m.ceil(exclusionBuffer / d_EW_between)  # reformatted indexes array width
@@ -140,8 +170,10 @@ def ExclusionMapper(ExclusionMap_array, reformatScaler, exclusionBuffer, d_EW_be
 # =============================================================================
 # Get Distance between array indexes
 def DistanceBWindexes(indexesA, indexesB, d_EW_between, d_NS_between):
-    # This function calculates the distances between array indexes. This works for
-    # any array, just the distance between indexes (or “pixels”) needs to be inputted.
+    """
+    This function calculates the distances between array indexes. This works for
+     any array, just the distance between indexes (or “pixels”) needs to be inputted.
+    """
     if type(indexesA) == list:
         indexesA_ = np.array(indexesA) * np.array([d_EW_between, d_NS_between])
     else:
@@ -168,11 +200,13 @@ def DistanceBWindexes(indexesA, indexesB, d_EW_between, d_NS_between):
 # ==============================================================================
 # Clustering of Connections for Initial Solution Pole Placement
 def Clustering(indexes_conn, num_clusters):
-    # This function clusters the house location to obtain initial placements of
-    # the LV (220V) poles. The number of clusters to create is set by the
-    # num_clusters input. The clustering is performed with gaussian mean clustering
-    # using the scikitlearn GaussianMixture function.
+    """
+     This function clusters the house location to obtain initial placements of
+     the LV (220V) poles. The number of clusters to create is set by the
+     num_clusters input. The clustering is performed with gaussian mean clustering
+     using the scikitlearn GaussianMixture function.
     from sklearn import mixture
+    """
 
     X = np.copy(indexes_conn)
 
@@ -201,10 +235,13 @@ def Clustering(indexes_conn, num_clusters):
 # ==============================================================================
 # Find non-exlcusion spot in growing circular manner
 def FindNonExclusionSpot(index_x_og, index_y_og, index_excl_comp, range_limit, max_y, max_x):
-    # This function determines if the initial pole placement is in an exclusion zone.
-    # If the pole is in an exclusion zone, the function tests the area around the
-    # initial placement in a circular fashion to find the closest index location
-    # to the initial placement that is not an exclusion zone.
+    """
+     This function determines if the initial pole placement is in an exclusion zone.
+     If the pole is in an exclusion zone, the function tests the area around the
+     initial placement in a circular fashion to find the closest index location
+     to the initial placement that is not an exclusion zone.
+    """
+
     for i in range(range_limit):
         # Define limits
         x_min = int(index_x_og - i)
@@ -247,8 +284,10 @@ def FindNonExclusionSpot(index_x_og, index_y_og, index_excl_comp, range_limit, m
 # ==============================================================================
 # Matching poles and connections by closest distance
 def MatchPolesConn(indexes_conn, indexes_poles, d_EW_between, d_NS_between):
-    # This function creates an array to specify which poles connect to which houses,
-    # by which houses are closest to which poles.
+    """
+     This function creates an array to specify which poles connect to which houses,
+     by which houses are closest to which poles.
+    """
     ConnPoles = np.zeros((len(indexes_conn[:, 0]), 2))
     DistanceConnPoles = DistanceBWindexes(indexes_conn, indexes_poles, d_EW_between, d_NS_between)
     for i in range(len(ConnPoles[:, 0])):
@@ -307,6 +346,9 @@ def ClusterTransformerCusts(indexes_conn, d_EW_between, d_NS_between, num_trans,
 # Initial Placement of LV connection poles 
 def LVPolesPlacement(customer_clusters, d_EW_between, d_NS_between, index_excl_comp,
                      range_limit, max_x, max_y, max_d_BW_pole_conn):
+    """
+    Initial Placement of LV connection poles
+    """
     poles_loc = []
     for cluster in customer_clusters:
         clust = cluster * np.array([d_EW_between, d_NS_between])
@@ -343,6 +385,9 @@ def LVPolesPlacement(customer_clusters, d_EW_between, d_NS_between, index_excl_c
 # Evaluate Transformer Poles Locations on the MV Network
 def TransformerLocations(LV_Poles_Clusters, d_EW_between, d_NS_between, index_excl_comp,
                          range_limit, max_x, max_y):
+    """
+    Evaluate Transformer Poles Locations on the MV Network
+    """
     trans_loc = np.zeros((len(LV_Poles_Clusters), 2))
     for idx, cluster in enumerate(LV_Poles_Clusters):
         c = cluster * np.array([d_EW_between, d_NS_between])
@@ -363,7 +408,10 @@ def TransformerLocations(LV_Poles_Clusters, d_EW_between, d_NS_between, index_ex
 # ==============================================================================
 # Collect the connection and exclusions data
 def CollectVillageData(reformatScaler=1, exclusionBuffer=2, max_d=4000):
-    # This function collects all of the data of the community needed to determine the network layout.
+    """
+    This function collects all of the data of the community needed to determine the network layout. 
+    i.e. Collect the connection and exclusions data
+    """
 
     # Gather the information needed
     # Import csv file which has been converted from the klm file
@@ -380,16 +428,20 @@ def CollectVillageData(reformatScaler=1, exclusionBuffer=2, max_d=4000):
     Longitude_exc = Exclusion_nodes['x']
     Latitude_exc = Exclusion_nodes['y']
     # also convert these degrees to radians
-    Lat_exc_min = m.radians(Latitude_exc.min())  # top of image (north)
-    Lat_exc_max = m.radians(Latitude_exc.max())  # bottom of image (south)
-    Long_exc_min = m.radians(Longitude_exc.min())  # left of image (east)
-    Long_exc_max = m.radians(Longitude_exc.max())  # right of image (west)
+    Lat_exc_min = Latitude_exc.min()
+    Lat_exc_max = Latitude_exc.max()
+    Long_exc_min = Longitude_exc.min()
+    Long_exc_max =Longitude_exc.max()
+
 
     # Calculate the distance between the gps coordiantes using Haversine Formula
     # North South Distance #measuring latitude difference
-    d_NS = GPStoDistance(Lat_exc_max, Lat_exc_min, Long_exc_max, Long_exc_max)  # m
+    #d_NS = GPStoDistance(Lat_exc_max, Lat_exc_min, Long_exc_max, Long_exc_max)  # m
     # East West Distance #measuring longitude difference
-    d_EW = GPStoDistance(Lat_exc_max, Lat_exc_max, Long_exc_max, Long_exc_min)  # m
+    #d_EW = GPStoDistance(Lat_exc_max, Lat_exc_max, Long_exc_max, Long_exc_min)  # m
+
+    #calculate the distance between the coordinates using the utm values, all the arguments should be in degrees
+    d_EW , d_NS = GPStoDistance_utm(Lat_exc_min,Long_exc_min,Lat_exc_max,Long_exc_max)
 
     if d_NS > max_d or d_EW > max_d:
         warnings.warn("Warning! The distances seem too high, you may want to check" \
@@ -405,11 +457,11 @@ def CollectVillageData(reformatScaler=1, exclusionBuffer=2, max_d=4000):
     #print("PeakLoad is {}".format(PeakLoad))
 
     # Import kml pdf file (of exclusions) and convert to jpg
-    #poppler_path_ = r"C:\Users\1pwr\Python_Projects\jvenv\Lib\site-packages\poppler-23.08.0\Library\bin"
+    poppler_path_ = r"C:\Users\1pwr\Python_Projects\jvenv\Lib\site-packages\poppler-23.08.0\Library\bin"
     if os.name == 'nt':
-        pages = convert_from_path(FULL_VILLAGE_NAME + '_exclusions.pdf', 500,)
+        pages = convert_from_path(FULL_VILLAGE_NAME + '_exclusions.pdf', 500,poppler_path =poppler_path_)
     else:
-        pages = convert_from_path(FULL_VILLAGE_NAME + '_exclusions.pdf', 500,)
+        pages = convert_from_path(FULL_VILLAGE_NAME + '_exclusions.pdf', 500)
     for page in pages:
         page.save(FULL_VILLAGE_NAME + '_exclusions.jpg', 'JPEG')
 
@@ -447,23 +499,47 @@ def CollectVillageData(reformatScaler=1, exclusionBuffer=2, max_d=4000):
         index_csv_name = "indexes_conn_reformatted_%s.csv" % str(reformatScaler)
         indexes_conn = np.loadtxt(index_csv_name, delimiter=",")
     except:
-        d_Econnection = np.zeros(len(Connect_nodes))
-        d_Nconnection = np.zeros(len(Connect_nodes))
+        #d_Econnection = np.zeros(len(Connect_nodes))
+        #d_Nconnection = np.zeros(len(Connect_nodes))
+        connections_list = [0]*len(Connect_nodes)
+        connect_dict= {
+            "Name": [],
+            "Longitude_idx": [],
+            "Latitude_idx": []
+        }
+        #df_connections = pd.DataFrame()
+        #d_Econnection = np.zeros(len(Connect_nodes))
+        #d_Nconnection = np.zeros(len(Connect_nodes))
         indexes_conn = np.zeros((len(Connect_nodes), 2))
-        for i in range(len(Connect_nodes)):  # iteration through connections
-            d_Econnection[i] = GPStoDistance(Lat_exc_min, Lat_exc_min, Long_exc_min,
-                                             m.radians(float(Connect_nodes['Longitude'][i])))  # m
-            # distance of connection to the east (left) (x index)
-            d_Nconnection[i] = GPStoDistance(Lat_exc_min, m.radians(float(Connect_nodes['Latitude'][i])), Long_exc_min,
-                                             Long_exc_min)  # m
+        print("Before the connection indexing loop")
+        
+        for i in Connect_nodes.index.to_list():  # iteration through connections
+            d_Econnection,d_Nconnection = GPStoDistance_utm(Lat_exc_min,Long_exc_min,
+                                                                Connect_nodes['Latitude'][i],Connect_nodes['Longitude'][i])
+            
+
             # distance of connection to the north (top) (y index)
             # Get array index locations of all connections
-            indexes_conn[i, 0] = int(d_Econnection[i] / d_EW_between)
-            # print(indexes_conn[i,0])
-            indexes_conn[i, 1] = int(d_Nconnection[i] / d_NS_between)
-            # print(indexes_conn[i,1])
-            index_csv_name = "indexes_conn_reformatted_%s.csv" % str(reformatScaler)
-            np.savetxt(index_csv_name, indexes_conn, delimiter=",")
+            indexes_conn[i, 0] = int(d_Econnection / d_EW_between)
+            indexes_conn[i, 1] = int(d_Nconnection / d_NS_between)
+
+
+            #Prepare the spreadsheet for mapping the pdf indexes to connections
+            connect_dict["Name"].append(Connect_nodes.loc[i]['Name'])
+            #print(f'Connection Dictionary: \r\n{connect_dict}')
+            
+            connect_dict["Longitude_idx"].append(int(d_Nconnection / d_NS_between))
+            #print(f'Connection Dictionary: \r\n{connect_dict}')
+
+            connect_dict["Latitude_idx"].append(int(d_Econnection / d_EW_between))
+            #print(f'longitude index: {indexes_conn[i,0]}')
+                
+        df_connections = pd.DataFrame(connect_dict)
+        #print(f'This is a test dataframe: \r\n{df_connections}')
+        df_conns_csv_name = "indexes_conns_names.csv"
+        df_connections.to_csv(df_conns_csv_name)
+        index_csv_name = "indexes_conn_reformatted_%s.csv" % str(reformatScaler)
+        np.savetxt(index_csv_name, indexes_conn, delimiter=",")
     # MSO did a data fit to determine the equation below.
     load_per_conn = 0.8957 * (len(indexes_conn)) ** (-0.243)
     print("Load per connection is {}".format(load_per_conn))
@@ -491,8 +567,8 @@ def CollectVillageData(reformatScaler=1, exclusionBuffer=2, max_d=4000):
                'MaxDistancePoleLV': int(net_inputs['MaxDistancePoleLV'][0]),
                'MaxDistancePoleMV': int(net_inputs['MaxDistancePoleMV'][0]),
                'range_limit': int(net_inputs['range_limit'][0]),
-               'lat_Generation': m.radians(net_inputs['lat_Generation'][0]),
-               'long_Generation': m.radians(net_inputs['long_Generation'][0]),
+               'lat_Generation': net_inputs['lat_Generation'][0],
+               'long_Generation': net_inputs['long_Generation'][0],
                'derate': float(vdrop_inputs['Derate'][0]),
                'tl_power': int(vdrop_inputs['TI Power'][0]),
                'other_power_factor': float(vdrop_inputs['Other Power Factor'][0]),
@@ -515,16 +591,28 @@ def CollectVillageData(reformatScaler=1, exclusionBuffer=2, max_d=4000):
 
 # ==============================================================================
 
+#Create the generation site indexes
+def gen_site_indexes(lat_Generation,long_Generation,Long_exc_min, Lat_exc_min, d_EW_between, d_NS_between):
+    """
+    Create the generation site indexes
+    """
+    
+    EW_dis,NS_dis = GPStoDistance_utm(Lat_exc_min, Long_exc_min, lat_Generation, long_Generation)
+    EW_index = int(EW_dis / d_EW_between)
+    NS_index = int(NS_dis / d_NS_between)
+    indexes_gen = [EW_index, NS_index]
+
+    return indexes_gen
 
 # ==============================================================================
 # Calculate Closest Pole to POI (point of interconnection) to generation
 def POI_Pole(lat_Generation, long_Generation, Long_exc_min, Lat_exc_min, d_EW_between, d_NS_between, indexes_poles,
              d_BW_Adj_Poles):
-    EW_dis = GPStoDistance(Lat_exc_min, Lat_exc_min, Long_exc_min, long_Generation)
-    NS_dis = GPStoDistance(Lat_exc_min, lat_Generation, Long_exc_min, Long_exc_min)
-    EW_index = int(EW_dis / d_EW_between)
-    NS_index = int(NS_dis / d_NS_between)
-    indexes_gen = [EW_index, NS_index]
+    """
+    Calculate Closest Pole to POI (point of interconnection) to generation
+    """
+    
+    indexes_gen = gen_site_indexes(lat_Generation,long_Generation,Long_exc_min, Lat_exc_min, d_EW_between, d_NS_between)
     # Calculate distances between generation and pole
     # Individually feed in each pair
     num_poles = len(indexes_poles[:, 0])
@@ -555,6 +643,10 @@ def POI_Pole(lat_Generation, long_Generation, Long_exc_min, Lat_exc_min, d_EW_be
 # Given an edge (p1, p2, d_p1_p2), and allowable distance between adjacent points
 # create intermediate points along the straight line connecting the two nodes
 def IntermediatePoints(edge, edge_dist, dropline=False):
+    """
+    Given an edge (p1, p2, d_p1_p2), and allowable distance between adjacent points
+    create intermediate points along the straight line connecting the two nodes
+    """
     P1, P2, k = edge  # unpack points
     if dropline == False:
         if k < 1.3 * edge_dist:
@@ -880,32 +972,29 @@ def PoleAngleClass(pole_indexes, d_EW_between, d_NS_between, ntype):
 
 # ==============================================================================
 # Get elevation of pole indexes using the generation latitude and logitude as 
-# reference point from Google Maps API 
+# reference point from the open access API open-elevation
 def PoleElevation(gen_LON, gen_LAT, gen_indexes, target_indexes, d_EW_between, d_NS_between):
     import requests
-    GPD = gpd.GeoDataFrame(geometry=[Point(np.degrees(gen_LON), np.degrees(gen_LAT))])
-    print(f'GPD: {GPD}')
-    GPD = GPD.set_crs("EPSG:4326")  # WGS84
-    GPD = GPD.to_crs("EPSG:32631") #GPD.to_crs("EPSG:22289")  # Transform to UTM (Mercator)
+    GPD = gpd.GeoDataFrame(geometry=[Point(gen_LON, gen_LAT)])
+    GPD = GPD.set_crs("WGS84")  # WGS84
+    GPD = GPD.to_crs(MERCATORS[(LOCATION.upper())]) #GPD.to_crs("EPSG:22289")  # Transform to UTM (Mercator)
     X, Y = list(GPD.geometry.values[0].coords)[0]
     X_Shifts = (gen_indexes[0] - target_indexes[:, 0]) * d_EW_between
     Y_Shifts = (gen_indexes[1] - target_indexes[:, 1]) * d_NS_between
     DF = pd.DataFrame({'index_x': target_indexes[:, 0], 'index_y': target_indexes[:, 1],
                        'UTM_X': X - X_Shifts, 'UTM_Y': Y - Y_Shifts})
     new_GDF = gpd.GeoDataFrame(DF, geometry=gpd.points_from_xy(DF.UTM_X, DF.UTM_Y))
-    print(f'newGDF: {new_GDF}')
-    new_GDF = new_GDF.set_crs("EPSG:32631") #new_GDF.set_crs("EPSG:22289")  # EPSG:3857
-    new_GDF = new_GDF.to_crs("EPSG:4326")  # EPSG:4326
+    new_GDF = new_GDF.set_crs(MERCATORS[(LOCATION.upper())]) #new_GDF.set_crs("EPSG:22289")  # EPSG:3857
+    new_GDF = new_GDF.to_crs("WGS84")  # EPSG:4326
     gps = np.array([[list(i.coords)[0][0], list(i.coords)[0][1]] for i in new_GDF.geometry.values])
-    print(f'GPS: {gps}')
 
     #print('\n\n\ngps size: ', len(gps), ' \n',gps)
     # print('\r\n*-\r\n Reference Coordinate: ', np.degrees(gen_LON),np.degrees(gen_LAT),'\r\n*')
 
     # Recalibrate the uGridnet coordinate outputs
-    for idx in range(len(gps)):
-        # lat           #long
-        gps[idx][1], gps[idx][0] = gpsRecalibration(np.degrees(gen_LAT), gps[idx][1], np.degrees(gen_LON), gps[idx][0])
+    #for idx in range(len(gps)):
+    #    # lat           #long
+    #    gps[idx][1], gps[idx][0] = gpsRecalibration(np.degrees(gen_LAT), gps[idx][1], np.degrees(gen_LON), gps[idx][0])
 
     elevations = []
     url = "https://maps.googleapis.com/maps/api/elevation/json?locations="
@@ -1382,21 +1471,41 @@ def ClassifyNetworkPoles(gen_LAT, gen_LON, gen_site_indexes,
                                'GPS_Y', 'elevation', 'geometry']]
 
     # Add the connections IDs to ugridnet output file
-    conn_ids = []
-    raw_connections = pd.read_excel(f"{FULL_VILLAGE_NAME}_connections.xlsx")
-    raw_connections['Name'].str.replace(' ', '_')
-    connections_copy = raw_connections.filter(items=['Longitude', 'Latitude']).to_numpy()
-    connections_copy_2 = connections_copy.copy()
-    out_XY = np.zeros((len(connections), 2))
-    out_XY[:, 0] = connections['GPS_X'].to_numpy()
-    out_XY[:, 1] = connections['GPS_Y'].to_numpy()
+    # conn_ids = []
+    # raw_connections = pd.read_excel(f"{FULL_VILLAGE_NAME}_connections.xlsx")
+    # raw_connections['Name'].str.replace(' ', '_')
+    # connections_copy = raw_connections.filter(items=['Longitude', 'Latitude']).to_numpy()
+    # connections_copy_2 = connections_copy.copy()
+    # out_XY = np.zeros((len(connections), 2))
+    # out_XY[:, 0] = connections['GPS_X'].to_numpy()
+    # out_XY[:, 1] = connections['GPS_Y'].to_numpy()
 
-    for v in out_XY:
-        diff_dist = np.sqrt(np.power(connections_copy_2[:, 0] - v[0], 2) + np.power(connections_copy_2[:, 1] - v[1], 2))
-        idx = np.where(diff_dist == diff_dist.min())[0]
-        connections_copy_2[idx, :] = np.array([180, 180])
-        conn_ids.append(str(raw_connections.loc[idx]['Name'].values[0]))
-    connections['Name'] = conn_ids
+    # for v in out_XY:
+    #     diff_dist = np.sqrt(np.power(connections_copy_2[:, 0] - v[0], 2) + np.power(connections_copy_2[:, 1] - v[1], 2))
+    #     idx = np.where(diff_dist == diff_dist.min())[0]
+    #     connections_copy_2[idx, :] = np.array([180, 180])
+    #     conn_ids.append(str(raw_connections.loc[idx]['Name'].values[0]))
+    # connections['Name'] = conn_ids
+    
+    #Add the connection IDs to the ugridnet output
+    df_connections = pd.read_csv('indexes_conns_names.csv')
+    df_connections["Name"].replace(" ","_")
+    #connection_w_names
+    connection_ids = []
+
+    original_conns_indexes = df_connections.filter(items=['Latitude_idx','Longitude_idx']).to_numpy()
+    conns_indexes = connections.filter(items=['index_x', 'index_y']).to_numpy()
+
+    oci_str = [str(int(original_conns_indexes[i, 0])) + str(int(original_conns_indexes[i, 1])) for i in range(len(original_conns_indexes))]
+    ci = [str(int(conns_indexes[i, 0])) + str(int(conns_indexes[i, 1])) for i in range(len(conns_indexes))]
+    
+    for conn_str in ci:
+        idx = oci_str.index(conn_str)
+        if idx is not None:
+            connection_ids.append(str(df_connections.loc[idx]['Name']))
+    connections['Name'] = connection_ids
+    print(connections)
+    
     # Drop lines
     try:
         conn_fro_ids, drop_fro_ids = MatchConnectionsPoleID(
@@ -1694,40 +1803,38 @@ def AddSpur(filename, gen_LON, gen_LAT, gen_indexes, indexes, type_,
 
 # ==============================================================================
 
-def gpsRecalibration(gen_lat, un_lat, gen_long, un_long, orig_long=-1, orig_lat=-1):
-    # RECALIBRATE THE GPS COORDINATES FOR THE UGRIDNET OUTPUT
-    # Constraints: 1) Ideally Requires the correlation equation be changed respectively for every site run
-    #             2) If need be, the equation can be created using excel spreadsheet
-    # TODO: ADD A MORE ROBUST FLATTENING PROJECTION FIX FOR THE COORDINATES
+# def gpsRecalibration(gen_lat, un_lat, gen_long, un_long, orig_long=-1, orig_lat=-1):
+#     # RECALIBRATE THE GPS COORDINATES FOR THE UGRIDNET OUTPUT
+#     # Constraints: 1) Ideally Requires the correlation equation be changed respectively for every site run
+#     #             2) If need be, the equation can be created using excel spreadsheet
+#     # TODO: ADD A MORE ROBUST FLATTENING PROJECTION FIX FOR THE COORDINATES
 
-    ref_lat, ref_long = gen_lat, gen_long
+#     ref_lat, ref_long = gen_lat, gen_long
 
-    # lat_offset = orig_lat - un_lat
-    # long_offset  =  orig_long - un_long
+#     # lat_offset = orig_lat - un_lat
+#     # long_offset  =  orig_long - un_long
 
-    if (orig_long != -1 and orig_lat != -1):
-        # used if the original values/coordinates are known
-        average_lat = 0.5 * (orig_lat + un_lat)
-        average_lat_offset = average_lat - ref_lat
-        average_long = 0.5 * (orig_long + un_long)
-        average_long_offset = average_long - ref_long
-    else:
+#     if (orig_long != -1 and orig_lat != -1):
+#         # used if the original values/coordinates are known
+#         average_lat = 0.5 * (orig_lat + un_lat)
+#         average_lat_offset = average_lat - ref_lat
+#         average_long = 0.5 * (orig_long + un_long)
+#         average_long_offset = average_long - ref_long
+#     else:
 
-        average_lat_offset = un_lat - ref_lat
-        average_long_offset = un_long - ref_long
+#         average_lat_offset = un_lat - ref_lat
+#         average_long_offset = un_long - ref_long
 
-    # Equations to correct/calibrate uGridNet coordinates outputs
-    location  = "NORTH"
-    if location == "SOUTH":
-        corr_lat = (0.005065190225781 * abs(average_lat_offset) - 0.00000283805355199712) + un_lat  # correction of latitude
-        corr_long = ((0.003791523859891 * average_long_offset) + 0.00000284320752421793) + un_long  # correction of longitude
-    elif location == "NORTH":
-        #corr_lat = (0.00404411886637057 * abs(average_lat_offset) + 0.00002250368493118) + un_lat  # correction of latitude
-        corr_lat = un_lat 
-        #corr_long = ((-0.00228730242697637000 *average_long_offset) + 0.00000016306793871088) + un_long  # correction of longitude
-        corr_long = un_long 
+#     # Equations to correct/calibrate uGridNet coordinates outputs
+#     location  = "NORTH"
+#     if location == "SOUTH":
+#         corr_lat = (0.005065190225781 * abs(average_lat_offset) - 0.00000283805355199712) + un_lat  # correction of latitude
+#         corr_long = ((0.003791523859891 * average_long_offset) + 0.00000284320752421793) + un_long  # correction of longitude
+#     elif location == "NORTH":
+#         corr_lat = (0.00404411886637057 * abs(average_lat_offset) + 0.00002250368493118) + un_lat  # correction of latitude
+#         corr_long = ((-0.00228730242697637000 *average_long_offset) + 0.00000016306793871088) + un_long  # correction of longitude
 
-    return corr_lat, corr_long
+#     return corr_lat, corr_long
 
 
 # ==============================================================================
@@ -1935,22 +2042,31 @@ def Rectify_Network_shift(Network_connections,Network_poles):
 
 if __name__ == '__main__':
 
-    if os.path.exists('outputs/indexes_conn_reformatted_1.csv'):
-        os.remove('outputs/indexes_conn_reformatted_1.csv')
+    
+    file_paths = os.getcwd()
+    if os.path.exists(os.path.join(file_paths,'indexes_conn_reformatted_1.csv')):
+        os.remove(os.path.join(file_paths,'indexes_conn_reformatted_1.csv'))
 
-    if os.path.exists('outputs/indexes_reformatted_1_bufferzone_2.csv'):
-        os.remove('outputs/indexes_reformatted_1_bufferzone_2.csv')
+    if os.path.exists(os.path.join(file_paths,'indexes_reformatted_1_bufferzone_2.csv')):
+        os.remove(os.path.join(file_paths,'indexes_reformatted_1_bufferzone_2.csv'))
 
-    if os.path.exists('outputs/index_maxes_1.csv'):
-        os.remove('outputs/index_maxes_1.csv')
+    if os.path.exists(os.path.join(file_paths,'index_maxes_1.csv')):
+        os.remove(os.path.join(file_paths,'index_maxes_1.csv'))
 
-    if os.path.exists('outputs/d_between_1.csv'):
-        os.remove('outputs/d_between_1.csv')
+    if os.path.exists(os.path.join(file_paths,'d_between_1.csv')):
+        os.remove(os.path.join(file_paths,'d_between_1.csv'))
+
+    
+
+    if LOCATION.upper() not in ["S","N"]:
+        LOCATION = "S"
+        print("Location is 'S' for SOUTH")
+    print("LOCATION: ",LOCATION)
 
     site_properties = CollectVillageData()
     # for k, v in site_properties.items():
     #     exec(k + '= v')
-
+    
     print("Done collecting village info, run optimizer")
     poleclasses, networklines, droplines, connections, vd, nc = SimulateNetwork(site_properties)
 
