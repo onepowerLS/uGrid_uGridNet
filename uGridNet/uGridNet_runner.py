@@ -1689,7 +1689,7 @@ def ConcessionDetails(dfpoles, dfnet, dfdropline, dfcosts, connections, voltaged
     dfpoles.to_file(shapepath + '/poles.shp')
     dfnet.to_file(shapepath + '/network.shp')
     dfdropline.to_file(shapepath + '/droplines.shp')
-    connections.to_file(shapepath + '/customers.shp
+    connections.to_file(shapepath + '/customers.shp')
 # ==============================================================================
 
 # ==============================================================================
