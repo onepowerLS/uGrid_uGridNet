@@ -1586,6 +1586,12 @@ def CBSizing(current, breaker_rating, breaker_sizes):
 # ==============================================================================
 
 
+def remove_white_spaces(ws, row):
+        for line in row:
+            if line.value!=None and line.value !=' ': 
+                return    
+        ws.delete_rows(row[0].row, 1)  
+
 # ==============================================================================
 # Put the results in an excel file 
 def ConcessionDetails(dfpoles, dfnet, dfdropline, dfcosts, connections, voltagedropdf):
@@ -1614,21 +1620,37 @@ def ConcessionDetails(dfpoles, dfnet, dfdropline, dfcosts, connections, voltaged
     wb.create_sheet(title="NetworkCalculations", index=4)
     wb.create_sheet(title="NetworkLayout", index=5)
     wb.create_sheet(title='NetworkCost', index=6)
+    
     ws = wb["PoleClasses"]
     for row in dataframe_to_rows(dfpoles.drop(columns=['geometry']), header=True):
         ws.append(row)
+    for row in ws:
+        remove_white_spaces(ws, row)
+
     ws = wb["NetworkLength"]
     for row in dataframe_to_rows(dfnet.drop(columns=['geometry']), header=True):
         ws.append(row)
+    for row in ws:
+        remove_white_spaces(ws, row)
+
     ws = wb['DropLines']
     for row in dataframe_to_rows(dfdropline.drop(columns=['geometry']), header=True):
         ws.append(row)
+    for row in ws:
+        remove_white_spaces(ws, row)
+
     ws = wb['Connections']
     for row in dataframe_to_rows(connections.drop(columns=['geometry']), header=True):
         ws.append(row)
+    for row in ws:
+        remove_white_spaces(ws, row)
+
     ws = wb['NetworkCalculations']
     for row in dataframe_to_rows(voltagedropdf, header=True):
         ws.append(row)
+    for row in ws:
+        remove_white_spaces(ws, row)
+        
     # Evaluate date and time on which the simulation is done
     simdate = dt.datetime.today()  # simulation date
 
@@ -1668,8 +1690,6 @@ def ConcessionDetails(dfpoles, dfnet, dfdropline, dfcosts, connections, voltaged
     dfnet.to_file(shapepath + '/network.shp')
     dfdropline.to_file(shapepath + '/droplines.shp')
     connections.to_file(shapepath + '/customers.shp')
-
-
 # ==============================================================================
 
 # ==============================================================================
