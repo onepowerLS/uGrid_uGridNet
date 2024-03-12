@@ -30,6 +30,8 @@ LV_CABLES = [
         "Type": "LV ABC (2-Core)",
         "VoltageDropConstant": 0.00084,
         "Size": 95,
+        "Cost": 3.5,
+        "CurrentCapacity":258
      },
     # {
     #     "Type": "LV ABC (2-Core)",

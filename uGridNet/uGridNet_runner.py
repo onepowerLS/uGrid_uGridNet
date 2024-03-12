@@ -87,8 +87,8 @@ def GPStoDistance_utm(Lat_exc_min_new, Long_exc_min_new, lat_coord, long_coord):
     GPD_coord = GPD_coord.to_crs(MERCATORS[(LOCATION.upper())])
     X_coord,Y_coord = list(GPD_coord.geometry.values[0].coords)[0]
     
-    X_dist = X_coord - Xmin
-    Y_dist = Y_coord - Ymin
+    X_dist = abs(X_coord - Xmin)
+    Y_dist = abs(Y_coord - Ymin)
     return X_dist,Y_dist
 
 # ===============================================================================
@@ -110,6 +110,7 @@ def ExclusionMapper(ExclusionMap_array, reformatScaler, exclusionBuffer, d_EW_be
     # Extend the exclusions to include the buffer zone
     bufferArrayWidth_EW = m.ceil(exclusionBuffer / d_EW_between)  # reformatted indexes array width
     bufferArrayHeight_NS = m.ceil(exclusionBuffer / d_NS_between)
+    print(f' boundaries {bufferArrayHeight_NS}, {bufferArrayHeight_NS}')
     height_og = len(ExclusionMap_array[:, 0, 0])
     width_og = len(ExclusionMap_array[0, :, 0])
     new_exclusions = np.zeros((width_new, height_new))
@@ -123,43 +124,62 @@ def ExclusionMapper(ExclusionMap_array, reformatScaler, exclusionBuffer, d_EW_be
             if ExclusionMap_array[
                 j, i, 0] != 255:  # exclusion zones are both grey and black, safe zones are white (255,255,255)
                 # set everything within buffer to 1
+                # print("In ExclusionMap_array")
+                # print(f'k :{k}, \n buffer width {bufferArrayWidth_EW},\n l: {l},\n buffer height: {bufferArrayHeight_NS}, hieght og: {height_og}')
                 if k < bufferArrayWidth_EW:
+                    # print('k< bufferArrayWidth_EW')
                     if l < bufferArrayHeight_NS:
+                        # print('k< bufferArrayWidth_EW')
                         new_exclusions[0:k + bufferArrayWidth_EW, 0:l + bufferArrayHeight_NS] = 1
                     elif l > height_og - bufferArrayHeight_NS:
+                        # print('k< bufferArrayWidth_EW')
                         new_exclusions[0:k + bufferArrayWidth_EW, l - bufferArrayHeight_NS:height_new] = 1
                     else:
+                        # print('k< bufferArrayWidth_EW')
                         new_exclusions[0:k + bufferArrayWidth_EW, l - bufferArrayHeight_NS:l + bufferArrayHeight_NS] = 1
                 elif k > width_new - bufferArrayWidth_EW:
+                    # print('k > bufferArrayWidth_EW')
                     if l < bufferArrayHeight_NS:
+                        # print('k > bufferArrayWidth_EW')
                         new_exclusions[k - bufferArrayWidth_EW:width_new, 0:l + bufferArrayHeight_NS] = 1
                     elif l > height_og - bufferArrayHeight_NS:
+                        # print('k > bufferArrayWidth_EW')
                         new_exclusions[k - bufferArrayWidth_EW:width_new, l - bufferArrayHeight_NS:height_new] = 1
                     else:
+                        # print('k > bufferArrayWidth_EW')
                         new_exclusions[k - bufferArrayWidth_EW:width_new,
                         l - bufferArrayHeight_NS:l + bufferArrayHeight_NS] = 1
                 else:
                     if l < bufferArrayHeight_NS:
+                        # print('l < bufferArrayHeight_NS')
                         new_exclusions[k - bufferArrayWidth_EW:k + bufferArrayWidth_EW, 0:l + bufferArrayHeight_NS] = 1
                     elif l > height_og - bufferArrayHeight_NS:
+                        # print('l > height_og - bufferArrayHeight_NS')
                         new_exclusions[k - bufferArrayWidth_EW:k + bufferArrayWidth_EW,
                         l - bufferArrayHeight_NS:height_new] = 1
                     else:
+                        # print('bufferArrayHeight_NS')
                         new_exclusions[k - bufferArrayWidth_EW:k + bufferArrayWidth_EW,
                         l - bufferArrayHeight_NS:l + bufferArrayHeight_NS] = 1
     del ExclusionMap_array
     print("finished remapping")
     new_exclusions = np.flip(new_exclusions)
+    #print(f'new exclusions: {new_exclusions}')
 
     for o in range(width_new):
+        #print('in super for loop')
         for p in range(height_new):
+            #print('in sub for loop')
             if new_exclusions[o, p] == 1:
+                print('A new case has been found')
                 indexes.append([o, p])
     indexes = np.array(indexes)
+    #print(indexes)
     print("finished new indexing")
 
     # Save new indexes
     index_csv_name = "indexes_reformatted_%s_bufferzone_%s.csv" % (str(reformatScaler), str(exclusionBuffer))
+    print(f'indexes are {indexes}')
     np.savetxt(index_csv_name, indexes, delimiter=",")
     return indexes
 
@@ -412,7 +432,7 @@ def CollectVillageData(reformatScaler=1, exclusionBuffer=2, max_d=4000):
     This function collects all of the data of the community needed to determine the network layout. 
     i.e. Collect the connection and exclusions data
     """
-
+    np.set_printoptions(threshold=sys.maxsize)
     # Gather the information needed
     # Import csv file which has been converted from the klm file
     # This gives the points of connections which are houses to link to the distribution grid
@@ -442,6 +462,7 @@ def CollectVillageData(reformatScaler=1, exclusionBuffer=2, max_d=4000):
 
     #calculate the distance between the coordinates using the utm values, all the arguments should be in degrees
     d_EW , d_NS = GPStoDistance_utm(Lat_exc_min,Long_exc_min,Lat_exc_max,Long_exc_max)
+    print(f'EasWest {d_EW}, NorthSouth {d_NS}')
 
     if d_NS > max_d or d_EW > max_d:
         warnings.warn("Warning! The distances seem too high, you may want to check" \
@@ -468,27 +489,30 @@ def CollectVillageData(reformatScaler=1, exclusionBuffer=2, max_d=4000):
     # Convert JPG to array
     ExclusionMap = Image.open(FULL_VILLAGE_NAME + '_exclusions.jpg')
     ExclusionMap_array = np.array(ExclusionMap)
+    # print(f'Exclusion map array {ExclusionMap_array}')
     # Filter rgb value to 0 'non exclusion' and 1 'exclusion'
     # Black 0-0-0, White 255-255-255
     height = int(len(ExclusionMap_array[:, 0]) / reformatScaler)  # this is y_index_max
     width = int(len(ExclusionMap_array[0, :]) / reformatScaler)  # this is x_index_max
+    print (f'Heigth: {height}, Width: {width}')
     filename = "index_maxes_%s.csv" % str(reformatScaler)
     np.savetxt(filename, [height, width], delimiter=",")
 
     # Determine distance between reformatted pixels (between values in the array)
     d_EW_between = d_EW / width  # m
     d_NS_between = d_NS / height  # m
+    print(f'd_EW_between: {d_EW_between}, d_NS_between: {d_NS_between}')
     filename = "d_between_%s.csv" % str(reformatScaler)
     np.savetxt(filename, [d_EW_between, d_NS_between], delimiter=",")
 
     # Load exlusion map, if not available then perform
     # This gathers the exclusion array indexes
     try:
-        # print("in try loop")
+        print("in try loop")
         index_csv_name = "indexes_reformatted_%s_bufferzone_%s.csv" % (str(reformatScaler), str(exclusionBuffer))
         indexes_excl = np.loadtxt(index_csv_name, delimiter=",")
     except:
-        # print("in except loop")
+        print("in except loop")
         # quit()
         indexes_excl = ExclusionMapper(ExclusionMap_array, reformatScaler, exclusionBuffer, d_EW_between, d_NS_between,
                                        width, height)
@@ -907,15 +931,20 @@ def EvaluateBranches(source_index, indexes, d_EW_between, d_NS_between):
 # Classify poles by angle
 def PoleAngleClass(pole_indexes, d_EW_between, d_NS_between, ntype):
     connectivity = MSTConnectivityMatrix(pole_indexes, d_EW_between, d_NS_between)
+    print(connectivity)
     classes = []
     for i in range(len(pole_indexes)):
         neighbors = np.sum(connectivity[i, :])
+        print(neighbors)
         p_mid = pole_indexes[i, :]
+        # print(p_mid)
         if neighbors == 1:
             classes.append('terminal')
         elif neighbors == 2:
-            neighbors_idx = np.where(connectivity[i, :] == 1)[1]
+            neighbors_idx = np.where(connectivity[i, :] == 1)[0]
+            print(f"neighbors_idx {neighbors_idx}")
             p_end_1 = pole_indexes[neighbors_idx[0], :]
+            #print(p_end_1)
             p_end_2 = pole_indexes[neighbors_idx[1], :]
             agl = AngleBWPoints(p_end_1, p_mid, p_end_2, d_EW_between, d_NS_between)
             if ntype == 'LV':
@@ -933,7 +962,7 @@ def PoleAngleClass(pole_indexes, d_EW_between, d_NS_between, ntype):
                 elif agl > 30:
                     classes.append("mid_over_30")
         elif neighbors > 2:
-            neighbors_idx = np.where(connectivity[i, :] == 1)[1]
+            neighbors_idx = np.where(connectivity[i, :] == 1)[0]
             p_ends = pole_indexes[neighbors_idx, :]
 
             d_BW_p_ends = DistanceBWindexes(p_ends, p_ends, d_EW_between, d_NS_between)
