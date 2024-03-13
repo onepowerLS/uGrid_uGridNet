@@ -110,7 +110,7 @@ def ExclusionMapper(ExclusionMap_array, reformatScaler, exclusionBuffer, d_EW_be
     # Extend the exclusions to include the buffer zone
     bufferArrayWidth_EW = m.ceil(exclusionBuffer / d_EW_between)  # reformatted indexes array width
     bufferArrayHeight_NS = m.ceil(exclusionBuffer / d_NS_between)
-    print(f' boundaries {bufferArrayHeight_NS}, {bufferArrayHeight_NS}')
+    # print(f' boundaries {bufferArrayHeight_NS}, {bufferArrayHeight_NS}')
     height_og = len(ExclusionMap_array[:, 0, 0])
     width_og = len(ExclusionMap_array[0, :, 0])
     new_exclusions = np.zeros((width_new, height_new))
@@ -171,7 +171,7 @@ def ExclusionMapper(ExclusionMap_array, reformatScaler, exclusionBuffer, d_EW_be
         for p in range(height_new):
             #print('in sub for loop')
             if new_exclusions[o, p] == 1:
-                print('A new case has been found')
+                # print('A new case has been found')
                 indexes.append([o, p])
     indexes = np.array(indexes)
     #print(indexes)
@@ -179,7 +179,7 @@ def ExclusionMapper(ExclusionMap_array, reformatScaler, exclusionBuffer, d_EW_be
 
     # Save new indexes
     index_csv_name = "indexes_reformatted_%s_bufferzone_%s.csv" % (str(reformatScaler), str(exclusionBuffer))
-    print(f'indexes are {indexes}')
+    # print(f'indexes are {indexes}')
     np.savetxt(index_csv_name, indexes, delimiter=",")
     return indexes
 
@@ -462,7 +462,7 @@ def CollectVillageData(reformatScaler=1, exclusionBuffer=2, max_d=4000):
 
     #calculate the distance between the coordinates using the utm values, all the arguments should be in degrees
     d_EW , d_NS = GPStoDistance_utm(Lat_exc_min,Long_exc_min,Lat_exc_max,Long_exc_max)
-    print(f'EasWest {d_EW}, NorthSouth {d_NS}')
+    # print(f'EasWest {d_EW}, NorthSouth {d_NS}')
 
     if d_NS > max_d or d_EW > max_d:
         warnings.warn("Warning! The distances seem too high, you may want to check" \
@@ -494,25 +494,25 @@ def CollectVillageData(reformatScaler=1, exclusionBuffer=2, max_d=4000):
     # Black 0-0-0, White 255-255-255
     height = int(len(ExclusionMap_array[:, 0]) / reformatScaler)  # this is y_index_max
     width = int(len(ExclusionMap_array[0, :]) / reformatScaler)  # this is x_index_max
-    print (f'Heigth: {height}, Width: {width}')
+    # print (f'Heigth: {height}, Width: {width}')
     filename = "index_maxes_%s.csv" % str(reformatScaler)
     np.savetxt(filename, [height, width], delimiter=",")
 
     # Determine distance between reformatted pixels (between values in the array)
     d_EW_between = d_EW / width  # m
     d_NS_between = d_NS / height  # m
-    print(f'd_EW_between: {d_EW_between}, d_NS_between: {d_NS_between}')
+    # print(f'd_EW_between: {d_EW_between}, d_NS_between: {d_NS_between}')
     filename = "d_between_%s.csv" % str(reformatScaler)
     np.savetxt(filename, [d_EW_between, d_NS_between], delimiter=",")
 
     # Load exlusion map, if not available then perform
     # This gathers the exclusion array indexes
     try:
-        print("in try loop")
+        # print("in try loop")
         index_csv_name = "indexes_reformatted_%s_bufferzone_%s.csv" % (str(reformatScaler), str(exclusionBuffer))
         indexes_excl = np.loadtxt(index_csv_name, delimiter=",")
     except:
-        print("in except loop")
+        # print("in except loop")
         # quit()
         indexes_excl = ExclusionMapper(ExclusionMap_array, reformatScaler, exclusionBuffer, d_EW_between, d_NS_between,
                                        width, height)
@@ -931,18 +931,18 @@ def EvaluateBranches(source_index, indexes, d_EW_between, d_NS_between):
 # Classify poles by angle
 def PoleAngleClass(pole_indexes, d_EW_between, d_NS_between, ntype):
     connectivity = MSTConnectivityMatrix(pole_indexes, d_EW_between, d_NS_between)
-    print(connectivity)
+    # print(connectivity)
     classes = []
     for i in range(len(pole_indexes)):
         neighbors = np.sum(connectivity[i, :])
-        print(neighbors)
+        # print(neighbors)
         p_mid = pole_indexes[i, :]
         # print(p_mid)
         if neighbors == 1:
             classes.append('terminal')
         elif neighbors == 2:
             neighbors_idx = np.where(connectivity[i, :] == 1)[0]
-            print(f"neighbors_idx {neighbors_idx}")
+            # print(f"neighbors_idx {neighbors_idx}")
             p_end_1 = pole_indexes[neighbors_idx[0], :]
             #print(p_end_1)
             p_end_2 = pole_indexes[neighbors_idx[1], :]
@@ -2050,6 +2050,7 @@ def SimulateNetwork(site_properties,
                     #min_num_trans = max_num_trans -2
             if len(all_LV_Poles) == 0 or len(droplines.index) == 0:
                 network_fail.append('Fail')
+                print("Fail")
             cost_total = networkcost['Line Total (USD)'].values.sum()
             print('Cost: $', cost_total)
             if cost_total < BestCost and not network_fail:

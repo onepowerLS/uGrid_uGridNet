@@ -3,6 +3,7 @@ from ast import Index
 from collections import Counter
 
 import datetime
+import sys
 
 import numpy as np
 import pandas as pd
@@ -12,7 +13,7 @@ from constants import HOUSEHOLD_CURRENT, LV_CABLES, NOMINAL_LV_VOLTAGE, NOMINAL_
 from models import Branch, Pole, Line, Cable, PoleType, ReticulationNetworkGraph
 from util import create_pole_list_from_df, create_subnetworks_from_df, create_mv_net_from_df, \
     output_voltage_to_gdf, output_voltage_to_excel, determine_transformer_size
-
+np.set_printoptions(threshold=sys.maxsize)
 VILLAGE_ID = "RIB_86"
 
 
@@ -120,11 +121,13 @@ def network_calculations(
                                "Connections": b.get_number_of_connections(), "LineType": "LV",
                                "CableType": cable.cable_type, "NominalVoltage": 230, "MinimumVoltage": least_voltage,
                                "Length": length, "Current": branch_current}
-                for i in [35, 50, 70]:
+                for i in [35, 50, 70, 95]:
                     if i >= cable.size:
                         result_info[f"CableSize {i}"] = "Pass"
+                        print(f"result_info: Pass, cable_size: {i}")
                     else:
                         result_info[f"CableSize {i}"] = "Fail"
+                        print(f"result_info: Fail, cable_size: {i}")
                 results_list.append(result_info)
                 try:
                     cable_choices[cable] = cable_choices[cable] + length
@@ -138,16 +141,22 @@ def network_calculations(
                                "LineType": "LV",
                                "CableType": "Fail", "NominalVoltage": 230, "MinimumVoltage": least_voltage,
                                "Length": length, "Current": branch_current}
-                for i in [35, 50, 70]:
+                for i in [35, 50, 70, 95]:
                     result_info[f"CableSize {i}"] = "Fail"
                 results_list.append(result_info)
             sub.get_current()
     results_list.append(mv_results)
 
-    for i in [35, 50, 70]:
+    for i in [35, 50, 70, 95]:
         columns.append(f"CableSize {i}")
         v_drop_df = pd.DataFrame(columns=columns)
-        v_drop_df = v_drop_df.append(results_list, ignore_index=True, sort=False)
+        results_df = pd.DataFrame.from_dict(results_list)
+        print(f' This is the results_df: {results_df}')
+        v_drop_df = pd.concat([v_drop_df,results_df], ignore_index=True, sort=False)
+    with pd.option_context('display.max_rows', None,
+                       'display.max_columns', None,
+                       'display.precision', 3,
+                       ):
         print(v_drop_df)
 
     # Transformer Calculations
