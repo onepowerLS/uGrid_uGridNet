@@ -1943,9 +1943,10 @@ def SimulateNetwork(site_properties,
     else:
         max_num_trans = min_num_trans + 9
 
-    household_current = 1.2 * (kW_max * 1000 / (num_connections * 230))
-    if household_current < 10:
-        household_current = 2
+    #household_current = 1.2 * (kW_max * 1000 / (num_connections * 230))
+    #if household_current < 10:
+    #    household_current = 2
+    household_current = HOUSEHOLD_CURRENT
     print("Household current is {}".format(household_current))
 
     # Set number of repeats 
