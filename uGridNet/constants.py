@@ -1,4 +1,4 @@
-HOUSEHOLD_CURRENT = input('Set the household current: ')
+HOUSEHOLD_CURRENT = float(input('Set the household current: '))
 LV_CABLES = [
     # {
     #     "Type": "LV ABC (2-Core)",
