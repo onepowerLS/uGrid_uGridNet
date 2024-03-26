@@ -260,7 +260,7 @@ if __name__ == "__main__":
     print("Time to complete simulation is " + str(total_time))
 
     #Best Solution Variables Saved
-    Total_Cost = gB_change_cost #gB_change_cost
+    Total_Cost = sum(gB_Cost) #gB_change_cost
     #add extra variables to solution output
     #This raises the error: ValueError: If using all scalar values, you must pass an index
     gB_total_var =pd.DataFrame({'Total Cost':[Total_Cost],'Simulation_Time':[total_time], 'Peak Load':[peakload]})
