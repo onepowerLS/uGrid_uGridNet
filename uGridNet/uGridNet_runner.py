@@ -951,7 +951,7 @@ def PoleAngleClass(pole_indexes, d_EW_between, d_NS_between, ntype):
             p_end_1 = pole_indexes[neighbors_idx[0], :]
             #print(p_end_1)
             p_end_2 = pole_indexes[neighbors_idx[1], :]
-            agl = AngleBWPoints(p_end_1, p_mid, p_end_2, d_EW_between, d_NS_between)
+            agl = float(0 if AngleBWPoints(p_end_1, p_mid, p_end_2, d_EW_between, d_NS_between) is None else AngleBWPoints(p_end_1, p_mid, p_end_2, d_EW_between, d_NS_between))
             if ntype == 'LV':
                 if agl <5:
                     classes.append("mid_straight")
