@@ -835,7 +835,7 @@ def AngleBWPoints(P_END_1, P_Mid, P_END_2, d_EW_between, d_NS_between):
             return np.pi
         else:
             g = (0 if (P1[1] - P2[1]) * d_NS_between / ((P1[0] - P2[0]) * d_EW_between) is None else (P1[1] - P2[1]) * d_NS_between / ((P1[0] - P2[0]) * d_EW_between))
-            if math.isnan(g):
+            if m.isnan(g):
                 g = 0
             print(f'The value of g is : {g}')
             theta = m.atan(g)
