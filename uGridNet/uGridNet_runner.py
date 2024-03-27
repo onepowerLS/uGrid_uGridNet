@@ -857,6 +857,8 @@ def AngleBWPoints(P_END_1, P_Mid, P_END_2, d_EW_between, d_NS_between):
         theta2 = angle(P_Mid, P_END_2)
         angles = np.degrees([theta1, theta2])
         print(f'Angle associated values are theta1: {theta1}, theta2: {theta2}, angles: {angles}')
+    except AttributeError:
+        pass
     except TypeError:
         theta1 = float(0 if angle(P_Mid, P_END_1) is None else angle(P_Mid, P_END_1)) 
         theta2 = float(0 if angle(P_Mid, P_END_2) is None else angle(P_Mid, P_END_2))
