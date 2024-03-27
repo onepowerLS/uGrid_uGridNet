@@ -838,9 +838,7 @@ def AngleBWPoints(P_END_1, P_Mid, P_END_2, d_EW_between, d_NS_between):
                 g = (0 if (P1[1] - P2[1]) * d_NS_between / ((P1[0] - P2[0]) * d_EW_between) is None else (P1[1] - P2[1]) * d_NS_between / ((P1[0] - P2[0]) * d_EW_between))
                 if m.isnan(g):
                     g = 0
-                print(f'The value of g is : {g}')
             except AttributeError:
-                print('in angles exception')
                 pass
             theta = m.atan(g)
 
@@ -856,7 +854,6 @@ def AngleBWPoints(P_END_1, P_Mid, P_END_2, d_EW_between, d_NS_between):
         theta1 = angle(P_Mid, P_END_1)
         theta2 = angle(P_Mid, P_END_2)
         angles = np.degrees([theta1, theta2])
-        print(f'Angle associated values are theta1: {theta1}, theta2: {theta2}, angles: {angles}')
         if abs(angles[1] - angles[0]) <= 180:
             return 180 - abs(angles[1] - angles[0])
         else:
