@@ -845,11 +845,15 @@ def AngleBWPoints(P_END_1, P_Mid, P_END_2, d_EW_between, d_NS_between):
                 return theta + np.pi
             elif P2[1] < P1[1] and P2[0] > P1[0]:  # Fourth Quadrant
                 return 2 * np.pi - np.abs(theta)
-
-    theta1 = angle(P_Mid, P_END_1)
-    theta2 = angle(P_Mid, P_END_2)
-    angles = np.degrees([theta1, theta2])
-    print(f'Angle associated values are theta1: {theta1}, theta2: {theta2}, angles: {angles}')
+    try:
+        theta1 = angle(P_Mid, P_END_1)
+        theta2 = angle(P_Mid, P_END_2)
+        angles = np.degrees([theta1, theta2])
+        print(f'Angle associated values are theta1: {theta1}, theta2: {theta2}, angles: {angles}')
+    except TypeError:
+        theta1 = float(0 if angle(P_Mid, P_END_1) is None else angle(P_Mid, P_END_1)) 
+        theta2 = float(0 if angle(P_Mid, P_END_2) is None else angle(P_Mid, P_END_2))
+        angles = float(np.degrees([theta1, theta2]))
     if abs(angles[1] - angles[0]) <= 180:
         return 180 - abs(angles[1] - angles[0])
     else:
