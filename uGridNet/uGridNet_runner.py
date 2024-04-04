@@ -1575,6 +1575,8 @@ def ClassifyNetworkPoles(gen_LAT, gen_LON, gen_site_indexes,
         survey_IDs.append(connections.iloc[idx]['Name'])
     droplines['DropConnID'] = survey_IDs
     # village_number = droplines.iloc[1]['DropPoleID'][4] + droplines.iloc[2]['DropPoleID'][5]
+    
+    
 
     return poleclasses, network_length, droplines, connections
 
@@ -1659,6 +1661,7 @@ def ConcessionDetails(dfpoles, dfnet, dfdropline, dfcosts, connections, voltaged
     wb.create_sheet(title="NetworkCalculations", index=4)
     wb.create_sheet(title="NetworkLayout", index=5)
     wb.create_sheet(title='NetworkCost', index=6)
+    wb.create_sheet(title="Ratings", index=7)
     
     ws = wb["PoleClasses"]
     for row in dataframe_to_rows(dfpoles.drop(columns=['geometry']), header=True):
@@ -1689,6 +1692,11 @@ def ConcessionDetails(dfpoles, dfnet, dfdropline, dfcosts, connections, voltaged
         ws.append(row)
     for row in ws:
         remove_white_spaces(ws, row)
+
+    ws = wb['Ratings']
+    ws.append(["Current"]) #header
+    ws.append([HOUSEHOLD_CURRENT]) #value
+
         
     # Evaluate date and time on which the simulation is done
     simdate = dt.datetime.today()  # simulation date
@@ -1900,6 +1908,7 @@ def AddSpur(filename, gen_LON, gen_LAT, gen_indexes, indexes, type_,
 # Run the Network 
 def SimulateNetwork(site_properties,
                     min_trans=1):
+   
     # Collect village details
     indexes_conn = site_properties['indexes_conn']
     indexes_excl = site_properties['indexes_excl']
