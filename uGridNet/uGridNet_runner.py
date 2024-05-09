@@ -1954,13 +1954,13 @@ def SimulateNetwork(site_properties,
     if num_connections < 50:
         max_num_trans = min_num_trans + 1
     elif num_connections in range(50, 100):
-        max_num_trans = min_num_trans + 3
+        max_num_trans = min_num_trans + 4
     elif num_connections in range(100, 150):
-        max_num_trans = min_num_trans + 5
-    elif num_connections in range(150, 200):
         max_num_trans = min_num_trans + 7
+    elif num_connections in range(150, 200):
+        max_num_trans = min_num_trans + 10
     else:
-        max_num_trans = min_num_trans + 9
+        max_num_trans = min_num_trans + 15
 
     #household_current = 1.2 * (kW_max * 1000 / (num_connections * 230))
     #if household_current < 10:
@@ -2081,7 +2081,7 @@ def SimulateNetwork(site_properties,
                 BestNetworkLines = networklines.copy()
                 BestPoleClasses = poleclasses.copy()
                 BestVoltageDrop = voltage_drop_df.copy()
-                max_num_trans = num_trans +2
+                max_num_trans = num_trans + 2
                 min_num_trans = max_num_trans -3
                 if min_num_trans == 0:
                     min_num_trans = 1 
@@ -2093,7 +2093,7 @@ def SimulateNetwork(site_properties,
                           connections, BestVoltageDrop)
     else:
         print("Could not find a solution, trying again!")
-        return SimulateNetwork(site_properties, min_trans + 1)
+        return SimulateNetwork(site_properties, max_num_trans + 1)
     return BestPoleClasses, BestNetworkLines, BestDropLines, connections, BestVoltageDrop, BestNetworkCost
 
 def Rectify_Network_shift(Network_connections,Network_poles):
