@@ -1252,19 +1252,18 @@ def NetworkLinesID(networklines):
     ID_to = networklines.Pole_ID_To.values.tolist()
     sub_net, branch = [], []
     for idx, type_ in enumerate(linetypes):
-        if type_ == 'MV':
-            sub_net.append('M')
-            branch.append(1)
-        else:
-            idx_ = ID_from[idx]
-            b = idx_[8:9]
-            sub_n = f"{idx_[4:6] + idx_[7]}"
-            if 'M' in sub_n:
-                idx_ = ID_to[idx]
-                b = idx_[8:9]
-                sub_n = f"{idx_[4:6] + idx_[7]}"
-            sub_net.append(sub_n)
-            branch.append(b)
+       
+        Pole_parts = ID_from[idx].split('_')
+        village_id = Pole_parts[1]
+        subnetwork_letter = Pole_parts[2][0]
+        branch_ = Pole_parts[2][1]
+
+        if subnetwork_letter == 'M':
+            branch_ = 1
+        subnetwork = village_id+subnetwork_letter
+        
+        sub_net.append(subnetwork)
+        branch.append(branch_)
     return sub_net, branch
 
 
@@ -1552,8 +1551,20 @@ def ClassifyNetworkPoles(gen_LAT, gen_LON, gen_site_indexes,
         droplines['DropPoleID'] = drop_fro_ids
         dsub_net, dbranch_ = [], []
         for id_ in drop_fro_ids:
-            b = id_[8:9]
-            sub_n = f"{id_[4:6] + id_[7]}"
+            pole_sample_parts = id_.split('_')
+        
+            sub_n = ''
+            b =''
+            if len(pole_sample_parts[0]) == 3:
+                b = id_[8:9]
+                sub_n = f"{id_[4:6] + id_[7]}"
+            elif len(pole_sample_parts[0]) == 4:
+                b = id_[9:10]
+                sub_n = f"{id_[5:7] + id_[8]}"
+            else:
+                print('CONCESSION: ', pole_sample_parts[0], 'Is too long')
+                exit(0)
+
             dsub_net.append(sub_n)
             dbranch_.append(b)
         droplines['SubNetwork'] = dsub_net

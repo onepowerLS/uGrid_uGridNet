@@ -115,12 +115,21 @@ def generate_digraph_edges(first_pole_id: str, filtered_df: pd.DataFrame, poles:
 
 def create_subnetworks_from_df(networklines_df: pd.DataFrame, poles: list[Pole]) -> list[SubNetwork]:
     networklines_df = networklines_df.dropna()
-    # pole_ids_to = networklines_df["Node 2"].tolist()
+    
     pole_ids_to = networklines_df["Pole_ID_To"].tolist()
     pole_ids_from = networklines_df["Pole_ID_From"].tolist()
-    # pole_ids_from = networklines_df["Node 1"].tolist()
     unique_pole_ids = list(set(pole_ids_to + pole_ids_from))
-    branch_names = [pole_id[:9] for pole_id in unique_pole_ids if pole_id[7] != "M"]
+
+    pole_sample_parts = unique_pole_ids[0].split('_')
+
+    if len(pole_sample_parts[0]) == 3:
+        branch_names = [pole_id[:9] for pole_id in unique_pole_ids if pole_id[7] != "M"]
+    elif len(pole_sample_parts[0]) == 4:
+        branch_names = [pole_id[:10] for pole_id in unique_pole_ids if pole_id[8] != "M"]
+    else:
+        print('\n\n:CONCESSION name: ',pole_sample_parts[0],  'Is too long, user 3 or 4 letters\n\n')
+        exit(0)
+   
     branch_names = list(set(branch_names))
     branch_names.sort()
 
