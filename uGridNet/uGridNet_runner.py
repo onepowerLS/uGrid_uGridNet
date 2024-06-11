@@ -38,6 +38,9 @@ LOCATION = str(sys.argv[4]).upper() if len(sys.argv)>4 else "N" # can either be 
 VILLAGE_ID = f"{CONCESSION}_{VILLAGE_NUMBER}" if (VILLAGE_NUMBER is not None) else f"{CONCESSION}"
 FULL_VILLAGE_NAME = f"{VILLAGE_ID}_{VILLAGE_NAME}" if (VILLAGE_NAME is not None) else f"{VILLAGE_ID}"
 
+if len(CONCESSION) > 3:
+    print(f'\n\nThe lenght of the concession [{CONCESSION}] Should be 3.')
+    exit(0)
 
 
 
