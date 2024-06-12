@@ -27,6 +27,7 @@ convert_from_path, PIL, time, networkx, shapely, openpyxl, geopandas and matplot
 ## Contributors
 
 - Thabo Monoto (tgemmonoto@gmail.com - OnePower Africa, Lesotho)
+- Motlatsi Manka (motlatsi.manka@gmail.com - OnePower Africa, Lesotho)
 
 ## License
 
