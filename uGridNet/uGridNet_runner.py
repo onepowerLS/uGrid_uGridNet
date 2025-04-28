@@ -25,11 +25,12 @@ from openpyxl.utils.dataframe import dataframe_to_rows
 from pdf2image import convert_from_path
 from scipy.spatial import distance_matrix
 from shapely.geometry import Point, LineString
-
 from constants import HOUSEHOLD_CURRENT, REFERENCES,MERCATORS
 from util import create_pole_list_from_df
 from network_calculations import network_calculations
-
+from dotenv import load_dotenv
+load_dotenv()
+elevation_api_key = os.getenv("ELEVATION_API_KEY")
 CONCESSION = sys.argv[1]
 VILLAGE_NUMBER = sys.argv[2]
 VILLAGE_NAME = sys.argv[3] if "C1" not in VILLAGE_NUMBER else None
@@ -1046,12 +1047,14 @@ def PoleElevation(gen_LON, gen_LAT, gen_indexes, target_indexes, d_EW_between, d
             if idx < len(new_GDF) - 1:
                 url = url + str(lat) + ',' + str(lon) + '|'
             else:
-                url = url + str(lat) + ',' + str(lon)
-        url = url + '&key=AIzaSyB7NCOraSbaIBDVg2-BU5D_mX_Q2BwZV2E'
+                url = url + str(lat) + ',' + str(lon) + '&key='
+        url = url + elevation_api_key
+        print(url)
         payload = {}
         headers = {}
         response = requests.request('GET', url, headers=headers, data=payload).json()
         elevations = [res['elevation'] for res in response['results']]
+        # print(elevations)
     else:
         #print('Many locations:', len(gps))
         points = new_GDF.geometry.values
@@ -1064,8 +1067,8 @@ def PoleElevation(gen_LON, gen_LAT, gen_indexes, target_indexes, d_EW_between, d
                 if idx < len(partial_pts) - 1:
                     url = url + str(lat) + ',' + str(lon) + '|'
                 else:
-                    url = url + str(lat) + ',' + str(lon)
-            url = url + '&key=AIzaSyB7NCOraSbaIBDVg2-BU5D_mX_Q2BwZV2E'
+                    url = url + str(lat) + ',' + str(lon) + '&key='
+            url = url + elevation_api_key
             payload = {}
             headers = {}
             response = requests.request('GET', url, headers=headers, data=payload).json()
