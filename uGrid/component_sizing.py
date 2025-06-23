@@ -24,10 +24,10 @@ def get_hardcoded_data():
         'Inverter kWac': [25, 30, 40, 50, 20, 35]
     })
     battery_data = pd.DataFrame({
-        'Battery Model': ['HV4875', 'HV51100'],
-        'V Batt': [48, 51.2],
-        'kWh': [3.6, 5.12],
-        'Rack Sizes': [[7, 11], [7, 11]]  # Add rack sizes for each battery model
+        'Battery Model': ['HV4875', 'HV51100', 'BOS-W25', 'BOS-W340','BOS-W36', 'BOS-W85'],
+        'V Batt': [48, 51.2, 51.2, 51.2,51.2, 51.2],
+        'kWh': [3.6, 5.12, 5.12, 5.12, 5.12, 5.12],
+        'Rack Sizes': [[7, 11], [7, 11], [7, 11], [7, 11], [7, 11], [7, 11]]  # Add rack sizes for each battery model
     })
     panel_data = pd.DataFrame({
         'Panel Model': ['XYZ-400W'],
